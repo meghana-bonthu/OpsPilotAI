@@ -5,10 +5,9 @@ import { catchError, of } from 'rxjs';
 import { Incident } from '../../core/models/incident';
 
 @Component({
-  selector: 'app-incident-list',
-  standalone: true,
-  imports: [AsyncPipe, DatePipe],
-  template: `
+    selector: 'app-incident-list',
+    imports: [AsyncPipe, DatePipe],
+    template: `
     <section class="page-heading"><div><p class="eyebrow">INCIDENT QUEUE</p><h2>Operational incidents</h2><p>Review, prioritize, and resolve work that needs attention.</p></div><button type="button">Create incident</button></section>
     <section class="panel">
       <div class="table-heading"><strong>Current queue</strong><span>Newest first</span></div>
@@ -27,7 +26,7 @@ import { Incident } from '../../core/models/incident';
       }
     </section>
   `,
-  changeDetection: ChangeDetectionStrategy.OnPush
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class IncidentListComponent {
   private readonly http = inject(HttpClient);
