@@ -15,3 +15,5 @@ public sealed record IncidentResponse(
     IncidentPriority Priority,
     IncidentStatus Status,
     DateTimeOffset CreatedAtUtc);
+public sealed record UpdateIncidentStatusRequest(
+    IncidentStatus Status);
