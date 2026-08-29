@@ -43,7 +43,39 @@ public sealed class IncidentsController(
             ? NotFound()
             : Ok(ToResponse(incident));
     }
+    [HttpGet("{id:guid}/history")]
+    [ProducesResponseType<IReadOnlyList<IncidentStatusChangeResponse>>(
+        StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<
+        ActionResult<IReadOnlyList<IncidentStatusChangeResponse>>> GetHistory(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        var incidentExists = await dbContext.Incidents
+            .AsNoTracking()
+            .AnyAsync(
+                incident => incident.Id == id,
+                cancellationToken);
 
+        if (!incidentExists)
+        {
+            return NotFound();
+        }
+
+        var history = await dbContext.IncidentStatusChanges
+            .AsNoTracking()
+            .Where(change => change.IncidentId == id)
+            .OrderByDescending(change => change.ChangedAtUtc)
+            .Select(change => new IncidentStatusChangeResponse(
+                change.Id,
+                change.PreviousStatus,
+                change.NewStatus,
+                change.ChangedAtUtc))
+            .ToListAsync(cancellationToken);
+
+        return Ok(history);
+    }
     [HttpPost]
     [ProducesResponseType<IncidentResponse>(
         StatusCodes.Status201Created)]
@@ -88,9 +120,11 @@ public sealed class IncidentsController(
             return NotFound();
         }
 
+                IncidentStatusChange statusChange;
+
         try
         {
-            incident.ChangeStatus(request.Status);
+            statusChange = incident.ChangeStatus(request.Status);
         }
         catch (InvalidOperationException exception)
         {
@@ -101,7 +135,7 @@ public sealed class IncidentsController(
                 Status = StatusCodes.Status409Conflict
             });
         }
-
+        dbContext.IncidentStatusChanges.Add(statusChange);
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return Ok(ToResponse(incident));

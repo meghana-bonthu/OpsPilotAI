@@ -55,6 +55,17 @@ public sealed class IncidentTests
         incident.ChangeStatus(IncidentStatus.Triaged);
 
         Assert.Equal(IncidentStatus.Triaged, incident.Status);
+                var historyEntry = Assert.Single(incident.StatusHistory);
+
+        Assert.Equal(incident.Id, historyEntry.IncidentId);
+        Assert.Equal(
+            IncidentStatus.New,
+            historyEntry.PreviousStatus);
+        Assert.Equal(
+            IncidentStatus.Triaged,
+            historyEntry.NewStatus);
+        Assert.True(
+            historyEntry.ChangedAtUtc <= DateTimeOffset.UtcNow);
     }
 
     [Fact]
@@ -69,6 +80,7 @@ public sealed class IncidentTests
             "An incident cannot transition from New to Closed.",
             exception.Message);
         Assert.Equal(IncidentStatus.New, incident.Status);
+        Assert.Empty(incident.StatusHistory);
     }
 
     [Fact]
@@ -83,6 +95,7 @@ public sealed class IncidentTests
 
         Assert.Equal(IncidentStatus.Closed, incident.Status);
         Assert.False(incident.CanTransitionTo(IncidentStatus.InProgress));
+        Assert.Equal(4, incident.StatusHistory.Count);
     }
 
     [Fact]

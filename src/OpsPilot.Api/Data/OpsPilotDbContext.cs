@@ -3,18 +3,66 @@ using OpsPilot.Api.Domain;
 
 namespace OpsPilot.Api.Data;
 
-public sealed class OpsPilotDbContext(DbContextOptions<OpsPilotDbContext> options) : DbContext(options)
+public sealed class OpsPilotDbContext(
+    DbContextOptions<OpsPilotDbContext> options) : DbContext(options)
 {
     public DbSet<Incident> Incidents => Set<Incident>();
+
+    public DbSet<IncidentStatusChange> IncidentStatusChanges =>
+        Set<IncidentStatusChange>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         var incident = modelBuilder.Entity<Incident>();
-        incident.HasKey(x => x.Id);
-        incident.Property(x => x.Title).HasMaxLength(160).IsRequired();
-        incident.Property(x => x.Description).HasMaxLength(4000).IsRequired();
-        incident.Property(x => x.Priority).HasConversion<string>().HasMaxLength(20);
-        incident.Property(x => x.Status).HasConversion<string>().HasMaxLength(20);
-        incident.HasIndex(x => new { x.Status, x.Priority });
+
+        incident.HasKey(current => current.Id);
+
+        incident.Property(current => current.Title)
+            .HasMaxLength(160)
+            .IsRequired();
+
+        incident.Property(current => current.Description)
+            .HasMaxLength(4000)
+            .IsRequired();
+
+        incident.Property(current => current.Priority)
+            .HasConversion<string>()
+            .HasMaxLength(20);
+
+        incident.Property(current => current.Status)
+            .HasConversion<string>()
+            .HasMaxLength(20);
+
+        incident.HasIndex(current => new
+        {
+            current.Status,
+            current.Priority
+        });
+
+        incident.HasMany(current => current.StatusHistory)
+            .WithOne()
+            .HasForeignKey(change => change.IncidentId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        incident.Navigation(current => current.StatusHistory)
+            .UsePropertyAccessMode(PropertyAccessMode.Field);
+
+        var statusChange = modelBuilder.Entity<IncidentStatusChange>();
+
+        statusChange.HasKey(change => change.Id);
+
+        statusChange.Property(change => change.PreviousStatus)
+            .HasConversion<string>()
+            .HasMaxLength(20);
+
+        statusChange.Property(change => change.NewStatus)
+            .HasConversion<string>()
+            .HasMaxLength(20);
+
+        statusChange.HasIndex(change => new
+        {
+            change.IncidentId,
+            change.ChangedAtUtc
+        });
     }
 }

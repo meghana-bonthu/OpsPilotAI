@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using OpsPilot.Api.Data;
 
@@ -11,9 +12,11 @@ using OpsPilot.Api.Data;
 namespace OpsPilot.Api.Data.Migrations
 {
     [DbContext(typeof(OpsPilotDbContext))]
-    partial class OpsPilotDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260829012319_AddIncidentStatusHistory")]
+    partial class AddIncidentStatusHistory
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

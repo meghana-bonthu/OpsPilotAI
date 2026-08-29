@@ -2,6 +2,8 @@ namespace OpsPilot.Api.Domain;
 
 public sealed class Incident
 {
+    private readonly List<IncidentStatusChange> _statusHistory = [];
+
     private Incident() { }
 
     public Incident(
@@ -29,7 +31,11 @@ public sealed class Incident
 
     public DateTimeOffset CreatedAtUtc { get; private set; }
 
-    public void ChangeStatus(IncidentStatus nextStatus)
+    public IReadOnlyCollection<IncidentStatusChange> StatusHistory =>
+        _statusHistory.AsReadOnly();
+
+        public IncidentStatusChange ChangeStatus(
+        IncidentStatus nextStatus)
     {
         if (!CanTransitionTo(nextStatus))
         {
@@ -37,7 +43,18 @@ public sealed class Incident
                 $"An incident cannot transition from {Status} to {nextStatus}.");
         }
 
+        var previousStatus = Status;
         Status = nextStatus;
+
+        var statusChange = new IncidentStatusChange(
+            Id,
+            previousStatus,
+            nextStatus,
+            DateTimeOffset.UtcNow);
+
+        _statusHistory.Add(statusChange);
+
+        return statusChange;
     }
 
     public bool CanTransitionTo(IncidentStatus nextStatus)

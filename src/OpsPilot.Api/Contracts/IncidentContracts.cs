@@ -17,3 +17,8 @@ public sealed record IncidentResponse(
     DateTimeOffset CreatedAtUtc);
 public sealed record UpdateIncidentStatusRequest(
     IncidentStatus Status);
+public sealed record IncidentStatusChangeResponse(
+    Guid Id,
+    IncidentStatus PreviousStatus,
+    IncidentStatus NewStatus,
+    DateTimeOffset ChangedAtUtc);
