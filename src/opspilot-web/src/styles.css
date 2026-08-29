@@ -250,3 +250,51 @@ button:disabled {
     width: 100%;
   }
 }
+.status-label {
+  color: #243b53;
+  font-weight: 600;
+}
+
+.status-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.status-button {
+  border: 1px solid #007c91;
+  padding: 8px 10px;
+  background: #fff;
+  color: #007c91;
+  font-size: 12px;
+}
+
+.status-button:hover:not(:disabled) {
+  background: #e6f6f8;
+}
+
+.status-button.status-cancel {
+  border-color: #d64545;
+  color: #b42318;
+}
+
+.status-button.status-cancel:hover:not(:disabled) {
+  background: #fff1f1;
+}
+
+.terminal-status {
+  color: #829ab1;
+  font-size: 12px;
+  font-style: italic;
+}
+
+@media (min-width: 651px) {
+  .incident-row {
+    grid-template-columns:
+      minmax(260px, 1fr)
+      100px
+      110px
+      minmax(190px, auto);
+  }
+}

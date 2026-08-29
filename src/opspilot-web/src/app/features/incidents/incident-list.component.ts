@@ -21,13 +21,18 @@ import {
 } from 'rxjs';
 import {
   Incident,
-  IncidentPriority
+  IncidentPriority,
+  IncidentStatus
 } from '../../core/models/incident';
 
 interface CreateIncidentRequest {
   title: string;
   description: string;
   priority: IncidentPriority;
+}
+
+interface UpdateIncidentStatusRequest {
+  status: IncidentStatus;
 }
 
 @Component({
@@ -127,6 +132,10 @@ interface CreateIncidentRequest {
       </section>
     }
 
+    @if (statusError()) {
+      <p class="request-error" role="alert">{{ statusError() }}</p>
+    }
+
     <section class="panel">
       <div class="table-heading">
         <strong>Current queue</strong>
@@ -153,7 +162,34 @@ interface CreateIncidentRequest {
                   {{ incident.priority }}
                 </span>
 
-                <span>{{ incident.status }}</span>
+                <span class="status-label">
+                  {{ statusLabels[incident.status] }}
+                </span>
+
+                <div class="status-actions">
+                  @for (
+                    nextStatus of allowedTransitions[incident.status];
+                    track nextStatus
+                  ) {
+                    <button
+                      type="button"
+                      class="status-button"
+                      [class.status-cancel]="nextStatus === 'Cancelled'"
+                      [disabled]="updatingIncidentId() === incident.id"
+                      (click)="updateStatus(incident.id, nextStatus)"
+                    >
+                      @if (updatingIncidentId() === incident.id) {
+                        Updating…
+                      } @else {
+                        {{ statusActionLabels[nextStatus] }}
+                      }
+                    </button>
+                  }
+
+                  @if (!allowedTransitions[incident.status].length) {
+                    <span class="terminal-status">No further actions</span>
+                  }
+                </div>
               </article>
             }
           </div>
@@ -179,10 +215,42 @@ export class IncidentListComponent {
     'Critical'
   ];
 
+  protected readonly allowedTransitions: Record<
+    IncidentStatus,
+    readonly IncidentStatus[]
+  > = {
+    New: ['Triaged', 'Cancelled'],
+    Triaged: ['InProgress', 'Cancelled'],
+    InProgress: ['Resolved', 'Cancelled'],
+    Resolved: ['Closed', 'InProgress'],
+    Closed: [],
+    Cancelled: []
+  };
+
+  protected readonly statusLabels: Record<IncidentStatus, string> = {
+    New: 'New',
+    Triaged: 'Triaged',
+    InProgress: 'In progress',
+    Resolved: 'Resolved',
+    Closed: 'Closed',
+    Cancelled: 'Cancelled'
+  };
+
+  protected readonly statusActionLabels: Record<IncidentStatus, string> = {
+    New: 'Set new',
+    Triaged: 'Mark triaged',
+    InProgress: 'Start work',
+    Resolved: 'Resolve',
+    Closed: 'Close',
+    Cancelled: 'Cancel'
+  };
+
   protected readonly showCreateForm = signal(false);
   protected readonly submitting = signal(false);
+  protected readonly updatingIncidentId = signal<string | null>(null);
   protected readonly saveError = signal('');
   protected readonly loadError = signal('');
+  protected readonly statusError = signal('');
 
   protected readonly incidentForm = new FormGroup({
     title: new FormControl('', {
@@ -254,6 +322,33 @@ export class IncidentListComponent {
         error: () => {
           this.saveError.set(
             'The incident could not be created. Review the information and try again.'
+          );
+        }
+      });
+  }
+
+  protected updateStatus(
+    incidentId: string,
+    nextStatus: IncidentStatus
+  ): void {
+    const request: UpdateIncidentStatusRequest = {
+      status: nextStatus
+    };
+
+    this.updatingIncidentId.set(incidentId);
+    this.statusError.set('');
+
+    this.http
+      .patch<Incident>(
+        `${this.apiUrl}/${incidentId}/status`,
+        request
+      )
+      .pipe(finalize(() => this.updatingIncidentId.set(null)))
+      .subscribe({
+        next: () => this.refreshIncidents.next(),
+        error: () => {
+          this.statusError.set(
+            'The incident status could not be updated. Refresh the queue and try again.'
           );
         }
       });
