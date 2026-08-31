@@ -1,21 +1,94 @@
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OpsPilot.Api.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Services.AddProblemDetails(options =>
+{
+    options.CustomizeProblemDetails = context =>
+    {
+        context.ProblemDetails.Extensions["traceId"] =
+            context.HttpContext.TraceIdentifier;
+    };
+});
+
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
-        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+        options.JsonSerializerOptions.Converters.Add(
+            new JsonStringEnumConverter()));
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-builder.Services.AddCors(options => options.AddPolicy("AngularDevelopment", policy =>
-    policy.WithOrigins("http://localhost:4200").AllowAnyHeader().AllowAnyMethod()));
+
+builder.Services.AddCors(options =>
+    options.AddPolicy("AngularDevelopment", policy =>
+        policy
+            .WithOrigins("http://localhost:4200")
+            .AllowAnyHeader()
+            .AllowAnyMethod()));
+
 builder.Services.AddDbContext<OpsPilotDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("OpsPilot")
-        ?? throw new InvalidOperationException("ConnectionStrings__OpsPilot is required.")));
+    options.UseSqlServer(
+        builder.Configuration.GetConnectionString("OpsPilot")
+        ?? throw new InvalidOperationException(
+            "ConnectionStrings__OpsPilot is required.")));
 
 var app = builder.Build();
+
+app.UseExceptionHandler(exceptionHandlerApp =>
+{
+    exceptionHandlerApp.Run(async context =>
+    {
+        var exceptionFeature =
+            context.Features.Get<IExceptionHandlerFeature>();
+
+        var logger = context.RequestServices
+            .GetRequiredService<ILogger<Program>>();
+
+        if (exceptionFeature?.Error is not null)
+        {
+            logger.LogError(
+                exceptionFeature.Error,
+                "Unhandled exception while processing {Method} {Path}. TraceId: {TraceId}",
+                context.Request.Method,
+                context.Request.Path,
+                context.TraceIdentifier);
+        }
+
+        await Results.Problem(
+            statusCode: StatusCodes.Status500InternalServerError,
+            title: "An unexpected error occurred.",
+            extensions: new Dictionary<string, object?>
+            {
+                ["traceId"] = context.TraceIdentifier
+            })
+            .ExecuteAsync(context);
+    });
+});
+app.UseStatusCodePages();
+app.Use(async (context, next) =>
+{
+    var logger = context.RequestServices
+        .GetRequiredService<ILogger<Program>>();
+
+    logger.LogInformation(
+        "HTTP {Method} {Path} started. TraceId: {TraceId}",
+        context.Request.Method,
+        context.Request.Path,
+        context.TraceIdentifier);
+
+    await next();
+
+    logger.LogInformation(
+        "HTTP {Method} {Path} completed with {StatusCode}. TraceId: {TraceId}",
+        context.Request.Method,
+        context.Request.Path,
+        context.Response.StatusCode,
+        context.TraceIdentifier);
+});
 
 if (app.Environment.IsDevelopment())
 {
@@ -24,9 +97,16 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-if (app.Environment.IsDevelopment()) app.UseCors("AngularDevelopment");
+
+if (app.Environment.IsDevelopment())
+{
+    app.UseCors("AngularDevelopment");
+}
+
 app.MapControllers();
-app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
+
+app.MapGet("/health", () =>
+    Results.Ok(new { status = "healthy" }));
 
 app.Run();
 
