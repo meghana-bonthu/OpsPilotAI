@@ -3,11 +3,13 @@ using Microsoft.EntityFrameworkCore;
 using OpsPilot.Api.Contracts;
 using OpsPilot.Api.Data;
 using OpsPilot.Api.Domain;
+using Microsoft.AspNetCore.Authorization;
 
 namespace OpsPilot.Api.Controllers;
 
 [ApiController]
 [Route("api/incidents")]
+[Authorize]
 public sealed class IncidentsController(
     OpsPilotDbContext dbContext) : ControllerBase
 {
@@ -76,6 +78,7 @@ public sealed class IncidentsController(
 
         return Ok(history);
     }
+    [Authorize(Policy = "ReporterOnly")]
     [HttpPost]
     [ProducesResponseType<IncidentResponse>(
         StatusCodes.Status201Created)]
@@ -100,7 +103,7 @@ public sealed class IncidentsController(
             new { id = incident.Id },
             response);
     }
-
+    [Authorize(Policy = "ResponderOrAdministrator")]
     [HttpPatch("{id:guid}/status")]
     [ProducesResponseType<IncidentResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -120,7 +123,7 @@ public sealed class IncidentsController(
             return NotFound();
         }
 
-                IncidentStatusChange statusChange;
+        IncidentStatusChange statusChange;
 
         try
         {

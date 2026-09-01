@@ -55,7 +55,7 @@ public sealed class IncidentTests
         incident.ChangeStatus(IncidentStatus.Triaged);
 
         Assert.Equal(IncidentStatus.Triaged, incident.Status);
-                var historyEntry = Assert.Single(incident.StatusHistory);
+        var historyEntry = Assert.Single(incident.StatusHistory);
 
         Assert.Equal(incident.Id, historyEntry.IncidentId);
         Assert.Equal(

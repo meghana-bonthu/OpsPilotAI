@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
+using System.Net.Http.Json;
 
 namespace OpsPilot.Api.Tests;
 
@@ -29,6 +30,13 @@ public sealed class ApiProblemDetailsTests
     [Fact]
     public async Task GetUnknownIncident_ReturnsProblemDetails()
     {
+        var token = await GetReporterTokenAsync();
+
+        _client.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue(
+                "Bearer",
+                token);
+
         var response = await _client.GetAsync(
             $"/api/incidents/{Guid.NewGuid()}");
 
@@ -98,6 +106,30 @@ public sealed class ApiProblemDetailsTests
             "Sensitive test exception details.",
             content,
             StringComparison.OrdinalIgnoreCase);
+    }
+    private async Task<string> GetReporterTokenAsync()
+    {
+        var email =
+            $"reporter-{Guid.NewGuid():N}@opspilot.local";
+
+        var response = await _client.PostAsJsonAsync(
+            "/api/auth/register",
+            new
+            {
+                email,
+                password = "Reporter1!"
+            });
+
+        response.EnsureSuccessStatusCode();
+
+        using var document = JsonDocument.Parse(
+            await response.Content.ReadAsStringAsync());
+
+        return document.RootElement
+            .GetProperty("accessToken")
+            .GetString()
+            ?? throw new InvalidOperationException(
+                "Access token was not returned.");
     }
 }
 

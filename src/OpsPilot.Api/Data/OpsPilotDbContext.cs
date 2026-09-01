@@ -1,10 +1,12 @@
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using OpsPilot.Api.Domain;
 
 namespace OpsPilot.Api.Data;
 
 public sealed class OpsPilotDbContext(
-    DbContextOptions<OpsPilotDbContext> options) : DbContext(options)
+    DbContextOptions<OpsPilotDbContext> options)
+    : IdentityDbContext<ApplicationUser>(options)
 {
     public DbSet<Incident> Incidents => Set<Incident>();
 
@@ -13,6 +15,8 @@ public sealed class OpsPilotDbContext(
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        base.OnModelCreating(modelBuilder);
+
         var incident = modelBuilder.Entity<Incident>();
 
         incident.HasKey(current => current.Id);

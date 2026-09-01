@@ -34,8 +34,8 @@ public sealed class Incident
     public IReadOnlyCollection<IncidentStatusChange> StatusHistory =>
         _statusHistory.AsReadOnly();
 
-        public IncidentStatusChange ChangeStatus(
-        IncidentStatus nextStatus)
+    public IncidentStatusChange ChangeStatus(
+    IncidentStatus nextStatus)
     {
         if (!CanTransitionTo(nextStatus))
         {

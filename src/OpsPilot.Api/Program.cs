@@ -3,6 +3,11 @@ using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OpsPilot.Api.Data;
+using Microsoft.AspNetCore.Identity;
+using OpsPilot.Api.Domain;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using OpsPilot.Api.Security;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -35,8 +40,81 @@ builder.Services.AddDbContext<OpsPilotDbContext>(options =>
         builder.Configuration.GetConnectionString("OpsPilot")
         ?? throw new InvalidOperationException(
             "ConnectionStrings__OpsPilot is required.")));
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services
+    .AddIdentityCore<ApplicationUser>(options =>
+    {
+        options.Password.RequireDigit = true;
+        options.Password.RequireLowercase = true;
+        options.Password.RequireUppercase = true;
+        options.Password.RequireNonAlphanumeric = true;
+        options.Password.RequiredLength = 8;
+    })
+    .AddRoles<IdentityRole>()
+    .AddEntityFrameworkStores<OpsPilotDbContext>()
+    .AddSignInManager();
+builder.Services.AddScoped<JwtTokenService>();
+var jwtKey = builder.Configuration["Jwt:Key"]
+    ?? throw new InvalidOperationException(
+        "Jwt__Key is required.");
 
+var jwtIssuer = builder.Configuration["Jwt:Issuer"]
+    ?? throw new InvalidOperationException(
+        "Jwt__Issuer is required.");
+
+var jwtAudience = builder.Configuration["Jwt:Audience"]
+    ?? throw new InvalidOperationException(
+        "Jwt__Audience is required.");
+
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters =
+            new TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidateAudience = true,
+                ValidateLifetime = true,
+                ValidateIssuerSigningKey = true,
+
+                ValidIssuer = jwtIssuer,
+                ValidAudience = jwtAudience,
+
+                IssuerSigningKey =
+                    new SymmetricSecurityKey(
+                        Convert.FromBase64String(jwtKey)),
+
+                ClockSkew = TimeSpan.FromMinutes(1)
+            };
+    });
+
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy(
+        "ReporterOnly",
+        policy => policy.RequireRole("Reporter"));
+
+    options.AddPolicy(
+        "ResponderOnly",
+        policy => policy.RequireRole("Responder"));
+
+    options.AddPolicy(
+        "AdministratorOnly",
+        policy => policy.RequireRole("Administrator"));
+
+    options.AddPolicy(
+        "ResponderOrAdministrator",
+        policy => policy.RequireRole(
+            "Responder",
+            "Administrator"));
+});
 var app = builder.Build();
+using (var scope = app.Services.CreateScope())
+{
+    await IdentitySeeder.SeedRolesAsync(
+        scope.ServiceProvider);
+}
 
 app.UseExceptionHandler(exceptionHandlerApp =>
 {
@@ -102,6 +180,8 @@ if (app.Environment.IsDevelopment())
 {
     app.UseCors("AngularDevelopment");
 }
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapControllers();
 
