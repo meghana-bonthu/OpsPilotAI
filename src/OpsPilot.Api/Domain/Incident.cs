@@ -30,6 +30,7 @@ public sealed class Incident
 
     public IncidentPriority Priority { get; private set; }
     public string ReporterUserId { get; private set; } = string.Empty;
+    public Guid? TeamId { get; private set; }
     public IncidentStatus Status { get; private set; }
 
     public DateTimeOffset CreatedAtUtc { get; private set; }
@@ -51,17 +52,27 @@ public sealed class Incident
         Status = nextStatus;
 
         var statusChange = new IncidentStatusChange(
-    Id,
-    previousStatus,
-    nextStatus,
-    DateTimeOffset.UtcNow,
-    changedByUserId);
+            Id,
+            previousStatus,
+            nextStatus,
+            DateTimeOffset.UtcNow,
+            changedByUserId);
 
         _statusHistory.Add(statusChange);
 
         return statusChange;
     }
+    public void AssignTeam(Guid teamId)
+    {
+        if (teamId == Guid.Empty)
+        {
+            throw new ArgumentException(
+                "Team ID cannot be empty.",
+                nameof(teamId));
+        }
 
+        TeamId = teamId;
+    }
     public bool CanTransitionTo(IncidentStatus nextStatus)
     {
         return Status switch

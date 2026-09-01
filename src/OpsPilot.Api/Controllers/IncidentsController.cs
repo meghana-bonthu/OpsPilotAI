@@ -1,9 +1,9 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OpsPilot.Api.Contracts;
 using OpsPilot.Api.Data;
 using OpsPilot.Api.Domain;
-using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
 
 namespace OpsPilot.Api.Controllers;
@@ -18,7 +18,7 @@ public sealed class IncidentsController(
     [ProducesResponseType<IReadOnlyList<IncidentResponse>>(
         StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyList<IncidentResponse>>> GetAll(
-    CancellationToken cancellationToken)
+        CancellationToken cancellationToken)
     {
         var query = dbContext.Incidents
             .AsNoTracking()
@@ -62,8 +62,8 @@ public sealed class IncidentsController(
         CancellationToken cancellationToken)
     {
         var query = dbContext.Incidents
-    .AsNoTracking()
-    .AsQueryable();
+            .AsNoTracking()
+            .AsQueryable();
 
         var hasElevatedAccess =
             User.IsInRole("Responder") ||
@@ -94,6 +94,7 @@ public sealed class IncidentsController(
             ? NotFound()
             : Ok(ToResponse(incident));
     }
+
     [HttpGet("{id:guid}/history")]
     [ProducesResponseType<IReadOnlyList<IncidentStatusChangeResponse>>(
         StatusCodes.Status200OK)]
@@ -104,8 +105,8 @@ public sealed class IncidentsController(
         CancellationToken cancellationToken)
     {
         var incidentQuery = dbContext.Incidents
-    .AsNoTracking()
-    .AsQueryable();
+            .AsNoTracking()
+            .AsQueryable();
 
         var hasElevatedAccess =
             User.IsInRole("Responder") ||
@@ -141,15 +142,16 @@ public sealed class IncidentsController(
             .Where(change => change.IncidentId == id)
             .OrderByDescending(change => change.ChangedAtUtc)
             .Select(change => new IncidentStatusChangeResponse(
-    change.Id,
-    change.PreviousStatus,
-    change.NewStatus,
-    change.ChangedAtUtc,
-    change.ChangedByUserId))
+                change.Id,
+                change.PreviousStatus,
+                change.NewStatus,
+                change.ChangedAtUtc,
+                change.ChangedByUserId))
             .ToListAsync(cancellationToken);
 
         return Ok(history);
     }
+
     [Authorize(Policy = "ReporterOnly")]
     [HttpPost]
     [ProducesResponseType<IncidentResponse>(
@@ -161,7 +163,7 @@ public sealed class IncidentsController(
         CancellationToken cancellationToken)
     {
         var reporterUserId =
-    User.FindFirstValue(ClaimTypes.NameIdentifier);
+            User.FindFirstValue(ClaimTypes.NameIdentifier);
 
         if (string.IsNullOrWhiteSpace(reporterUserId))
         {
@@ -184,6 +186,7 @@ public sealed class IncidentsController(
             new { id = incident.Id },
             response);
     }
+
     [Authorize(Policy = "ResponderOrAdministrator")]
     [HttpPatch("{id:guid}/status")]
     [ProducesResponseType<IncidentResponse>(StatusCodes.Status200OK)]
@@ -203,27 +206,23 @@ public sealed class IncidentsController(
         {
             return NotFound();
         }
-    var changedByUserId =
-    User.FindFirstValue(
-        ClaimTypes.NameIdentifier);
 
-if (string.IsNullOrWhiteSpace(changedByUserId))
-{
-    return Unauthorized();
-}
+        var changedByUserId =
+            User.FindFirstValue(
+                ClaimTypes.NameIdentifier);
 
-if (string.IsNullOrWhiteSpace(changedByUserId))
-{
-    return Unauthorized();
-}
+        if (string.IsNullOrWhiteSpace(changedByUserId))
+        {
+            return Unauthorized();
+        }
+
         IncidentStatusChange statusChange;
 
         try
         {
-            statusChange =
-    incident.ChangeStatus(
-        request.Status,
-        changedByUserId);
+            statusChange = incident.ChangeStatus(
+                request.Status,
+                changedByUserId);
         }
         catch (InvalidOperationException exception)
         {
@@ -234,7 +233,56 @@ if (string.IsNullOrWhiteSpace(changedByUserId))
                 Status = StatusCodes.Status409Conflict
             });
         }
+
         dbContext.IncidentStatusChanges.Add(statusChange);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return Ok(ToResponse(incident));
+    }
+
+    [Authorize(Policy = "ResponderOrAdministrator")]
+    [HttpPatch("{id:guid}/team")]
+    [ProducesResponseType<IncidentResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ValidationProblemDetails>(
+        StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<IncidentResponse>> AssignTeam(
+        Guid id,
+        AssignIncidentTeamRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (request.TeamId == Guid.Empty)
+        {
+            ModelState.AddModelError(
+                nameof(request.TeamId),
+                "Team ID cannot be empty.");
+
+            return ValidationProblem(ModelState);
+        }
+
+        var incident = await dbContext.Incidents
+            .SingleOrDefaultAsync(
+                current => current.Id == id,
+                cancellationToken);
+
+        if (incident is null)
+        {
+            return NotFound();
+        }
+
+        var teamExists = await dbContext.Teams
+            .AsNoTracking()
+            .AnyAsync(
+                team => team.Id == request.TeamId,
+                cancellationToken);
+
+        if (!teamExists)
+        {
+            return NotFound();
+        }
+
+        incident.AssignTeam(request.TeamId);
+
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return Ok(ToResponse(incident));
@@ -243,11 +291,12 @@ if (string.IsNullOrWhiteSpace(changedByUserId))
     private static IncidentResponse ToResponse(Incident incident)
     {
         return new IncidentResponse(
-            incident.Id,
-            incident.Title,
-            incident.Description,
-            incident.Priority,
-            incident.Status,
-            incident.CreatedAtUtc);
+    incident.Id,
+    incident.Title,
+    incident.Description,
+    incident.Priority,
+    incident.Status,
+    incident.CreatedAtUtc,
+    incident.TeamId);
     }
 }

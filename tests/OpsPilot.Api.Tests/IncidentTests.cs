@@ -120,7 +120,30 @@ public sealed class IncidentTests
         Assert.False(incident.CanTransitionTo(IncidentStatus.InProgress));
         Assert.Equal(4, incident.StatusHistory.Count);
     }
+    [Fact]
+    public void AssignTeam_WithValidTeamId_AssignsTeam()
+    {
+        var incident = CreateIncident();
+        var teamId = Guid.NewGuid();
 
+        incident.AssignTeam(teamId);
+
+        Assert.Equal(teamId, incident.TeamId);
+    }
+    [Fact]
+    public void AssignTeam_WithEmptyTeamId_Throws()
+    {
+        var incident = CreateIncident();
+
+        var exception = Assert.Throws<ArgumentException>(
+            () => incident.AssignTeam(Guid.Empty));
+
+        Assert.Equal(
+            "Team ID cannot be empty. (Parameter 'teamId')",
+            exception.Message);
+
+        Assert.Null(incident.TeamId);
+    }
     [Fact]
     public void ResolvedIncident_CanBeReopened()
     {

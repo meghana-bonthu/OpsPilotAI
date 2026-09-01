@@ -14,9 +14,15 @@ public sealed record IncidentResponse(
     string Description,
     IncidentPriority Priority,
     IncidentStatus Status,
-    DateTimeOffset CreatedAtUtc);
+    DateTimeOffset CreatedAtUtc,
+    Guid? TeamId);
+
 public sealed record UpdateIncidentStatusRequest(
     IncidentStatus Status);
+
+public sealed record AssignIncidentTeamRequest(
+    Guid TeamId);
+
 public sealed record IncidentStatusChangeResponse(
     Guid Id,
     IncidentStatus PreviousStatus,

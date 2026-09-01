@@ -13,6 +13,8 @@ public sealed class OpsPilotDbContext(
     public DbSet<IncidentStatusChange> IncidentStatusChanges =>
         Set<IncidentStatusChange>();
 
+    public DbSet<Team> Teams => Set<Team>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -41,6 +43,11 @@ public sealed class OpsPilotDbContext(
             .HasConversion<string>()
             .HasMaxLength(20);
 
+        incident.HasOne<Team>()
+            .WithMany()
+            .HasForeignKey(current => current.TeamId)
+            .OnDelete(DeleteBehavior.SetNull);
+
         incident.HasIndex(current => new
         {
             current.Status,
@@ -55,7 +62,8 @@ public sealed class OpsPilotDbContext(
         incident.Navigation(current => current.StatusHistory)
             .UsePropertyAccessMode(PropertyAccessMode.Field);
 
-        var statusChange = modelBuilder.Entity<IncidentStatusChange>();
+        var statusChange =
+            modelBuilder.Entity<IncidentStatusChange>();
 
         statusChange.HasKey(change => change.Id);
 
@@ -66,13 +74,26 @@ public sealed class OpsPilotDbContext(
         statusChange.Property(change => change.NewStatus)
             .HasConversion<string>()
             .HasMaxLength(20);
+
         statusChange.Property(change => change.ChangedByUserId)
-    .HasMaxLength(450)
-    .IsRequired();
+            .HasMaxLength(450)
+            .IsRequired();
+
         statusChange.HasIndex(change => new
         {
             change.IncidentId,
             change.ChangedAtUtc
         });
+
+        var team = modelBuilder.Entity<Team>();
+
+        team.HasKey(current => current.Id);
+
+        team.Property(current => current.Name)
+            .HasMaxLength(120)
+            .IsRequired();
+
+        team.HasIndex(current => current.Name)
+            .IsUnique();
     }
 }
