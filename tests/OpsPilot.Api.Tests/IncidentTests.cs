@@ -125,10 +125,42 @@ public sealed class IncidentTests
     {
         var incident = CreateIncident();
         var teamId = Guid.NewGuid();
+        const string assignedByUserId = "test-user";
 
-        incident.AssignTeam(teamId);
+        var assignment = incident.AssignTeam(
+            teamId,
+            assignedByUserId);
 
         Assert.Equal(teamId, incident.TeamId);
+
+        Assert.Equal(incident.Id, assignment.IncidentId);
+        Assert.Equal(teamId, assignment.TeamId);
+        Assert.Equal(
+            assignedByUserId,
+            assignment.AssignedByUserId);
+
+        Assert.Single(incident.TeamAssignmentHistory);
+        Assert.Same(
+            assignment,
+            incident.TeamAssignmentHistory.Single());
+    }
+    [Fact]
+    public void AssignTeam_WithMissingActor_Throws()
+    {
+        var incident = CreateIncident();
+        var teamId = Guid.NewGuid();
+
+        var exception = Assert.Throws<ArgumentException>(
+            () => incident.AssignTeam(
+                teamId,
+                " "));
+
+        Assert.Equal(
+            "Assigned-by user ID is required. (Parameter 'assignedByUserId')",
+            exception.Message);
+
+        Assert.Null(incident.TeamId);
+        Assert.Empty(incident.TeamAssignmentHistory);
     }
     [Fact]
     public void AssignTeam_WithEmptyTeamId_Throws()
@@ -136,7 +168,9 @@ public sealed class IncidentTests
         var incident = CreateIncident();
 
         var exception = Assert.Throws<ArgumentException>(
-            () => incident.AssignTeam(Guid.Empty));
+            () => incident.AssignTeam(
+    Guid.Empty,
+    "test-user"));
 
         Assert.Equal(
             "Team ID cannot be empty. (Parameter 'teamId')",

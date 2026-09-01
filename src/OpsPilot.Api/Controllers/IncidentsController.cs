@@ -281,7 +281,20 @@ public sealed class IncidentsController(
             return NotFound();
         }
 
-        incident.AssignTeam(request.TeamId);
+        var assignedByUserId =
+    User.FindFirstValue(
+        ClaimTypes.NameIdentifier);
+
+        if (string.IsNullOrWhiteSpace(assignedByUserId))
+        {
+            return Unauthorized();
+        }
+
+        var assignment = incident.AssignTeam(
+            request.TeamId,
+            assignedByUserId);
+
+        dbContext.IncidentTeamAssignments.Add(assignment);
 
         await dbContext.SaveChangesAsync(cancellationToken);
 

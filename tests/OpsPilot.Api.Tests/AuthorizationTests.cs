@@ -5,6 +5,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.EntityFrameworkCore;
 using OpsPilot.Api.Data;
 using OpsPilot.Api.Domain;
 using OpsPilot.Api.Security;
@@ -388,6 +389,24 @@ public sealed class AuthorizationTests
             getDocument.RootElement
                 .GetProperty("teamId")
                 .GetGuid());
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var dbContext =
+                scope.ServiceProvider
+                    .GetRequiredService<OpsPilotDbContext>();
+
+            var assignment = await dbContext.IncidentTeamAssignments
+                .AsNoTracking()
+                .SingleAsync(
+                    current =>
+                        current.IncidentId == incidentId &&
+                        current.TeamId == teamId);
+
+            Assert.Equal(
+                responder.UserId,
+                assignment.AssignedByUserId);
+        }
     }
     [Fact]
     public async Task AssignTeam_AsReporter_ReturnsForbidden()

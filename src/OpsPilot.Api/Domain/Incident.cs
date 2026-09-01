@@ -4,7 +4,9 @@ namespace OpsPilot.Api.Domain;
 public sealed class Incident
 {
     private readonly List<IncidentStatusChange> _statusHistory = [];
-
+    public IReadOnlyCollection<IncidentTeamAssignment> TeamAssignmentHistory =>
+    _teamAssignmentHistory.AsReadOnly();
+    private readonly List<IncidentTeamAssignment> _teamAssignmentHistory = [];
     private Incident() { }
 
     public Incident(
@@ -62,7 +64,9 @@ public sealed class Incident
 
         return statusChange;
     }
-    public void AssignTeam(Guid teamId)
+    public IncidentTeamAssignment AssignTeam(
+    Guid teamId,
+    string assignedByUserId)
     {
         if (teamId == Guid.Empty)
         {
@@ -71,7 +75,24 @@ public sealed class Incident
                 nameof(teamId));
         }
 
+        if (string.IsNullOrWhiteSpace(assignedByUserId))
+        {
+            throw new ArgumentException(
+                "Assigned-by user ID is required.",
+                nameof(assignedByUserId));
+        }
+
         TeamId = teamId;
+
+        var assignment = new IncidentTeamAssignment(
+            Id,
+            teamId,
+            DateTimeOffset.UtcNow,
+            assignedByUserId);
+
+        _teamAssignmentHistory.Add(assignment);
+
+        return assignment;
     }
     public bool CanTransitionTo(IncidentStatus nextStatus)
     {

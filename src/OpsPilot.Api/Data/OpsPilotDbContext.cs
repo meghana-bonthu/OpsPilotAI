@@ -13,6 +13,9 @@ public sealed class OpsPilotDbContext(
     public DbSet<IncidentStatusChange> IncidentStatusChanges =>
         Set<IncidentStatusChange>();
 
+    public DbSet<IncidentTeamAssignment> IncidentTeamAssignments =>
+        Set<IncidentTeamAssignment>();
+
     public DbSet<Team> Teams => Set<Team>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -62,6 +65,14 @@ public sealed class OpsPilotDbContext(
         incident.Navigation(current => current.StatusHistory)
             .UsePropertyAccessMode(PropertyAccessMode.Field);
 
+        incident.HasMany(current => current.TeamAssignmentHistory)
+            .WithOne()
+            .HasForeignKey(assignment => assignment.IncidentId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        incident.Navigation(current => current.TeamAssignmentHistory)
+            .UsePropertyAccessMode(PropertyAccessMode.Field);
+
         var statusChange =
             modelBuilder.Entity<IncidentStatusChange>();
 
@@ -84,6 +95,27 @@ public sealed class OpsPilotDbContext(
             change.IncidentId,
             change.ChangedAtUtc
         });
+
+        var teamAssignment =
+            modelBuilder.Entity<IncidentTeamAssignment>();
+
+        teamAssignment.HasKey(assignment => assignment.Id);
+
+        teamAssignment.Property(
+                assignment => assignment.AssignedByUserId)
+            .HasMaxLength(450)
+            .IsRequired();
+
+        teamAssignment.HasIndex(assignment => new
+        {
+            assignment.IncidentId,
+            assignment.AssignedAtUtc
+        });
+
+        teamAssignment.HasOne<Team>()
+            .WithMany()
+            .HasForeignKey(assignment => assignment.TeamId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         var team = modelBuilder.Entity<Team>();
 
