@@ -8,9 +8,10 @@ public sealed class IncidentTests
     public void Constructor_CreatesNewIncidentWithTrimmedValues()
     {
         var incident = new Incident(
-            "  Payment processing unavailable  ",
-            "  Users cannot complete payment processing.  ",
-            IncidentPriority.High);
+    "  Payment processing unavailable  ",
+    "  Users cannot complete payment processing.  ",
+    IncidentPriority.High,
+    "reporter-user-1");
 
         Assert.NotEqual(Guid.Empty, incident.Id);
         Assert.Equal(
@@ -20,6 +21,9 @@ public sealed class IncidentTests
             "Users cannot complete payment processing.",
             incident.Description);
         Assert.Equal(IncidentPriority.High, incident.Priority);
+        Assert.Equal(
+    "reporter-user-1",
+    incident.ReporterUserId);
         Assert.Equal(IncidentStatus.New, incident.Status);
         Assert.True(incident.CreatedAtUtc <= DateTimeOffset.UtcNow);
     }
@@ -114,8 +118,9 @@ public sealed class IncidentTests
     private static Incident CreateIncident()
     {
         return new Incident(
-            "Shipment tracking delayed",
-            "Tracking events have not arrived for thirty minutes.",
-            IncidentPriority.Critical);
+    "Shipment tracking delayed",
+    "Tracking events have not arrived for thirty minutes.",
+    IncidentPriority.Critical,
+    "test-reporter-user");
     }
 }

@@ -33,6 +33,10 @@ public sealed class OpsPilotDbContext(
             .HasConversion<string>()
             .HasMaxLength(20);
 
+        incident.Property(current => current.ReporterUserId)
+            .HasMaxLength(450)
+            .IsRequired();
+
         incident.Property(current => current.Status)
             .HasConversion<string>()
             .HasMaxLength(20);

@@ -1,3 +1,4 @@
+
 namespace OpsPilot.Api.Domain;
 
 public sealed class Incident
@@ -7,14 +8,16 @@ public sealed class Incident
     private Incident() { }
 
     public Incident(
-        string title,
-        string description,
-        IncidentPriority priority)
+    string title,
+    string description,
+    IncidentPriority priority,
+    string reporterUserId)
     {
         Id = Guid.NewGuid();
         Title = title.Trim();
         Description = description.Trim();
         Priority = priority;
+        ReporterUserId = reporterUserId;
         Status = IncidentStatus.New;
         CreatedAtUtc = DateTimeOffset.UtcNow;
     }
@@ -26,7 +29,7 @@ public sealed class Incident
     public string Description { get; private set; } = string.Empty;
 
     public IncidentPriority Priority { get; private set; }
-
+    public string ReporterUserId { get; private set; } = string.Empty;
     public IncidentStatus Status { get; private set; }
 
     public DateTimeOffset CreatedAtUtc { get; private set; }

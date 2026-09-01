@@ -80,6 +80,159 @@ public sealed class AuthorizationTests
             HttpStatusCode.Unauthorized,
             response.StatusCode);
     }
+    [Fact]
+    public async Task GetIncident_AsDifferentReporter_ReturnsNotFound()
+    {
+        var reporterAToken =
+            await RegisterReporterAsync();
+
+        _client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue(
+                "Bearer",
+                reporterAToken);
+
+        var createResponse = await _client.PostAsJsonAsync(
+            "/api/incidents",
+            new
+            {
+                title = "Reporter ownership test",
+                description = "Created by Reporter A.",
+                priority = "Medium"
+            });
+
+        createResponse.EnsureSuccessStatusCode();
+
+        using var createDocument = JsonDocument.Parse(
+            await createResponse.Content.ReadAsStringAsync());
+
+        var incidentId =
+            createDocument.RootElement
+                .GetProperty("id")
+                .GetGuid();
+
+        var reporterBToken =
+            await RegisterReporterAsync();
+
+        _client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue(
+                "Bearer",
+                reporterBToken);
+
+        var response = await _client.GetAsync(
+            $"/api/incidents/{incidentId}");
+
+        Assert.Equal(
+            HttpStatusCode.NotFound,
+            response.StatusCode);
+    }
+    [Fact]
+    public async Task GetIncidents_AsReporter_ReturnsOnlyOwnedIncidents()
+    {
+        var reporterAToken =
+            await RegisterReporterAsync();
+
+        _client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue(
+                "Bearer",
+                reporterAToken);
+
+        var createAResponse = await _client.PostAsJsonAsync(
+            "/api/incidents",
+            new
+            {
+                title = "Reporter A incident",
+                description = "Owned by Reporter A.",
+                priority = "Low"
+            });
+
+        createAResponse.EnsureSuccessStatusCode();
+
+        var reporterBToken =
+            await RegisterReporterAsync();
+
+        _client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue(
+                "Bearer",
+                reporterBToken);
+
+        var createBResponse = await _client.PostAsJsonAsync(
+            "/api/incidents",
+            new
+            {
+                title = "Reporter B incident",
+                description = "Owned by Reporter B.",
+                priority = "High"
+            });
+
+        createBResponse.EnsureSuccessStatusCode();
+
+        var response = await _client.GetAsync(
+            "/api/incidents");
+
+        response.EnsureSuccessStatusCode();
+
+        using var document = JsonDocument.Parse(
+            await response.Content.ReadAsStringAsync());
+
+        var incidents = document.RootElement;
+
+        Assert.Contains(
+            incidents.EnumerateArray(),
+            incident =>
+                incident.GetProperty("title").GetString()
+                == "Reporter B incident");
+
+        Assert.DoesNotContain(
+            incidents.EnumerateArray(),
+            incident =>
+                incident.GetProperty("title").GetString()
+                == "Reporter A incident");
+    }
+    [Fact]
+    public async Task GetHistory_AsDifferentReporter_ReturnsNotFound()
+    {
+        var reporterAToken =
+            await RegisterReporterAsync();
+
+        _client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue(
+                "Bearer",
+                reporterAToken);
+
+        var createResponse = await _client.PostAsJsonAsync(
+            "/api/incidents",
+            new
+            {
+                title = "History ownership test",
+                description = "Created by Reporter A.",
+                priority = "Medium"
+            });
+
+        createResponse.EnsureSuccessStatusCode();
+
+        using var createDocument = JsonDocument.Parse(
+            await createResponse.Content.ReadAsStringAsync());
+
+        var incidentId =
+            createDocument.RootElement
+                .GetProperty("id")
+                .GetGuid();
+
+        var reporterBToken =
+            await RegisterReporterAsync();
+
+        _client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue(
+                "Bearer",
+                reporterBToken);
+
+        var response = await _client.GetAsync(
+            $"/api/incidents/{incidentId}/history");
+
+        Assert.Equal(
+            HttpStatusCode.NotFound,
+            response.StatusCode);
+    }
     private async Task<string> RegisterReporterAsync()
     {
         var email =

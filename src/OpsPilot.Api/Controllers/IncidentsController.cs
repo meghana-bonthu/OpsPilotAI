@@ -4,6 +4,7 @@ using OpsPilot.Api.Contracts;
 using OpsPilot.Api.Data;
 using OpsPilot.Api.Domain;
 using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
 
 namespace OpsPilot.Api.Controllers;
 
@@ -17,12 +18,37 @@ public sealed class IncidentsController(
     [ProducesResponseType<IReadOnlyList<IncidentResponse>>(
         StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyList<IncidentResponse>>> GetAll(
-        CancellationToken cancellationToken)
+    CancellationToken cancellationToken)
     {
-        var incidents = await dbContext.Incidents
+        var query = dbContext.Incidents
             .AsNoTracking()
-            .OrderByDescending(incident => incident.CreatedAtUtc)
-            .Select(incident => ToResponse(incident))
+            .AsQueryable();
+
+        var hasElevatedAccess =
+            User.IsInRole("Responder") ||
+            User.IsInRole("Administrator");
+
+        if (!hasElevatedAccess)
+        {
+            var reporterUserId =
+                User.FindFirstValue(
+                    ClaimTypes.NameIdentifier);
+
+            if (string.IsNullOrWhiteSpace(reporterUserId))
+            {
+                return Unauthorized();
+            }
+
+            query = query.Where(
+                incident =>
+                    incident.ReporterUserId == reporterUserId);
+        }
+
+        var incidents = await query
+            .OrderByDescending(
+                incident => incident.CreatedAtUtc)
+            .Select(
+                incident => ToResponse(incident))
             .ToListAsync(cancellationToken);
 
         return Ok(incidents);
@@ -35,8 +61,31 @@ public sealed class IncidentsController(
         Guid id,
         CancellationToken cancellationToken)
     {
-        var incident = await dbContext.Incidents
-            .AsNoTracking()
+        var query = dbContext.Incidents
+    .AsNoTracking()
+    .AsQueryable();
+
+        var hasElevatedAccess =
+            User.IsInRole("Responder") ||
+            User.IsInRole("Administrator");
+
+        if (!hasElevatedAccess)
+        {
+            var reporterUserId =
+                User.FindFirstValue(
+                    ClaimTypes.NameIdentifier);
+
+            if (string.IsNullOrWhiteSpace(reporterUserId))
+            {
+                return Unauthorized();
+            }
+
+            query = query.Where(
+                current =>
+                    current.ReporterUserId == reporterUserId);
+        }
+
+        var incident = await query
             .SingleOrDefaultAsync(
                 current => current.Id == id,
                 cancellationToken);
@@ -54,11 +103,33 @@ public sealed class IncidentsController(
         Guid id,
         CancellationToken cancellationToken)
     {
-        var incidentExists = await dbContext.Incidents
-            .AsNoTracking()
-            .AnyAsync(
-                incident => incident.Id == id,
-                cancellationToken);
+        var incidentQuery = dbContext.Incidents
+    .AsNoTracking()
+    .AsQueryable();
+
+        var hasElevatedAccess =
+            User.IsInRole("Responder") ||
+            User.IsInRole("Administrator");
+
+        if (!hasElevatedAccess)
+        {
+            var reporterUserId =
+                User.FindFirstValue(
+                    ClaimTypes.NameIdentifier);
+
+            if (string.IsNullOrWhiteSpace(reporterUserId))
+            {
+                return Unauthorized();
+            }
+
+            incidentQuery = incidentQuery.Where(
+                incident =>
+                    incident.ReporterUserId == reporterUserId);
+        }
+
+        var incidentExists = await incidentQuery.AnyAsync(
+            incident => incident.Id == id,
+            cancellationToken);
 
         if (!incidentExists)
         {
@@ -88,10 +159,19 @@ public sealed class IncidentsController(
         CreateIncidentRequest request,
         CancellationToken cancellationToken)
     {
+        var reporterUserId =
+    User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (string.IsNullOrWhiteSpace(reporterUserId))
+        {
+            return Unauthorized();
+        }
+
         var incident = new Incident(
             request.Title,
             request.Description,
-            request.Priority);
+            request.Priority,
+            reporterUserId);
 
         dbContext.Incidents.Add(incident);
         await dbContext.SaveChangesAsync(cancellationToken);
