@@ -38,7 +38,8 @@ public sealed class Incident
         _statusHistory.AsReadOnly();
 
     public IncidentStatusChange ChangeStatus(
-    IncidentStatus nextStatus)
+    IncidentStatus nextStatus,
+    string changedByUserId)
     {
         if (!CanTransitionTo(nextStatus))
         {
@@ -50,10 +51,11 @@ public sealed class Incident
         Status = nextStatus;
 
         var statusChange = new IncidentStatusChange(
-            Id,
-            previousStatus,
-            nextStatus,
-            DateTimeOffset.UtcNow);
+    Id,
+    previousStatus,
+    nextStatus,
+    DateTimeOffset.UtcNow,
+    changedByUserId);
 
         _statusHistory.Add(statusChange);
 

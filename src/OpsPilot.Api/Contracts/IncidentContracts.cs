@@ -21,4 +21,5 @@ public sealed record IncidentStatusChangeResponse(
     Guid Id,
     IncidentStatus PreviousStatus,
     IncidentStatus NewStatus,
-    DateTimeOffset ChangedAtUtc);
+    DateTimeOffset ChangedAtUtc,
+    string ChangedByUserId);

@@ -10,3 +10,5 @@ appsettings.Development.json
 .vscode/
 *.user
 *.suo
+
+db-backup/

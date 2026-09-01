@@ -141,10 +141,11 @@ public sealed class IncidentsController(
             .Where(change => change.IncidentId == id)
             .OrderByDescending(change => change.ChangedAtUtc)
             .Select(change => new IncidentStatusChangeResponse(
-                change.Id,
-                change.PreviousStatus,
-                change.NewStatus,
-                change.ChangedAtUtc))
+    change.Id,
+    change.PreviousStatus,
+    change.NewStatus,
+    change.ChangedAtUtc,
+    change.ChangedByUserId))
             .ToListAsync(cancellationToken);
 
         return Ok(history);
@@ -202,12 +203,27 @@ public sealed class IncidentsController(
         {
             return NotFound();
         }
+    var changedByUserId =
+    User.FindFirstValue(
+        ClaimTypes.NameIdentifier);
 
+if (string.IsNullOrWhiteSpace(changedByUserId))
+{
+    return Unauthorized();
+}
+
+if (string.IsNullOrWhiteSpace(changedByUserId))
+{
+    return Unauthorized();
+}
         IncidentStatusChange statusChange;
 
         try
         {
-            statusChange = incident.ChangeStatus(request.Status);
+            statusChange =
+    incident.ChangeStatus(
+        request.Status,
+        changedByUserId);
         }
         catch (InvalidOperationException exception)
         {

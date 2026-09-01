@@ -8,10 +8,10 @@ public sealed class IncidentTests
     public void Constructor_CreatesNewIncidentWithTrimmedValues()
     {
         var incident = new Incident(
-    "  Payment processing unavailable  ",
-    "  Users cannot complete payment processing.  ",
-    IncidentPriority.High,
-    "reporter-user-1");
+            "  Payment processing unavailable  ",
+            "  Users cannot complete payment processing.  ",
+            IncidentPriority.High,
+            "reporter-user-1");
 
         Assert.NotEqual(Guid.Empty, incident.Id);
         Assert.Equal(
@@ -22,8 +22,8 @@ public sealed class IncidentTests
             incident.Description);
         Assert.Equal(IncidentPriority.High, incident.Priority);
         Assert.Equal(
-    "reporter-user-1",
-    incident.ReporterUserId);
+            "reporter-user-1",
+            incident.ReporterUserId);
         Assert.Equal(IncidentStatus.New, incident.Status);
         Assert.True(incident.CreatedAtUtc <= DateTimeOffset.UtcNow);
     }
@@ -56,9 +56,12 @@ public sealed class IncidentTests
     {
         var incident = CreateIncident();
 
-        incident.ChangeStatus(IncidentStatus.Triaged);
+        incident.ChangeStatus(
+            IncidentStatus.Triaged,
+            "test-responder-user");
 
         Assert.Equal(IncidentStatus.Triaged, incident.Status);
+
         var historyEntry = Assert.Single(incident.StatusHistory);
 
         Assert.Equal(incident.Id, historyEntry.IncidentId);
@@ -68,6 +71,9 @@ public sealed class IncidentTests
         Assert.Equal(
             IncidentStatus.Triaged,
             historyEntry.NewStatus);
+        Assert.Equal(
+            "test-responder-user",
+            historyEntry.ChangedByUserId);
         Assert.True(
             historyEntry.ChangedAtUtc <= DateTimeOffset.UtcNow);
     }
@@ -78,7 +84,9 @@ public sealed class IncidentTests
         var incident = CreateIncident();
 
         var exception = Assert.Throws<InvalidOperationException>(
-            () => incident.ChangeStatus(IncidentStatus.Closed));
+            () => incident.ChangeStatus(
+                IncidentStatus.Closed,
+                "test-responder-user"));
 
         Assert.Equal(
             "An incident cannot transition from New to Closed.",
@@ -92,10 +100,21 @@ public sealed class IncidentTests
     {
         var incident = CreateIncident();
 
-        incident.ChangeStatus(IncidentStatus.Triaged);
-        incident.ChangeStatus(IncidentStatus.InProgress);
-        incident.ChangeStatus(IncidentStatus.Resolved);
-        incident.ChangeStatus(IncidentStatus.Closed);
+        incident.ChangeStatus(
+            IncidentStatus.Triaged,
+            "test-responder-user");
+
+        incident.ChangeStatus(
+            IncidentStatus.InProgress,
+            "test-responder-user");
+
+        incident.ChangeStatus(
+            IncidentStatus.Resolved,
+            "test-responder-user");
+
+        incident.ChangeStatus(
+            IncidentStatus.Closed,
+            "test-responder-user");
 
         Assert.Equal(IncidentStatus.Closed, incident.Status);
         Assert.False(incident.CanTransitionTo(IncidentStatus.InProgress));
@@ -107,10 +126,21 @@ public sealed class IncidentTests
     {
         var incident = CreateIncident();
 
-        incident.ChangeStatus(IncidentStatus.Triaged);
-        incident.ChangeStatus(IncidentStatus.InProgress);
-        incident.ChangeStatus(IncidentStatus.Resolved);
-        incident.ChangeStatus(IncidentStatus.InProgress);
+        incident.ChangeStatus(
+            IncidentStatus.Triaged,
+            "test-responder-user");
+
+        incident.ChangeStatus(
+            IncidentStatus.InProgress,
+            "test-responder-user");
+
+        incident.ChangeStatus(
+            IncidentStatus.Resolved,
+            "test-responder-user");
+
+        incident.ChangeStatus(
+            IncidentStatus.InProgress,
+            "test-responder-user");
 
         Assert.Equal(IncidentStatus.InProgress, incident.Status);
     }
@@ -118,9 +148,9 @@ public sealed class IncidentTests
     private static Incident CreateIncident()
     {
         return new Incident(
-    "Shipment tracking delayed",
-    "Tracking events have not arrived for thirty minutes.",
-    IncidentPriority.Critical,
-    "test-reporter-user");
+            "Shipment tracking delayed",
+            "Tracking events have not arrived for thirty minutes.",
+            IncidentPriority.Critical,
+            "test-reporter-user");
     }
 }

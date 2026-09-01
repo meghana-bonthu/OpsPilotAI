@@ -66,7 +66,9 @@ public sealed class OpsPilotDbContext(
         statusChange.Property(change => change.NewStatus)
             .HasConversion<string>()
             .HasMaxLength(20);
-
+        statusChange.Property(change => change.ChangedByUserId)
+    .HasMaxLength(450)
+    .IsRequired();
         statusChange.HasIndex(change => new
         {
             change.IncidentId,

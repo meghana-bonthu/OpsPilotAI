@@ -5,16 +5,18 @@ public sealed class IncidentStatusChange
     private IncidentStatusChange() { }
 
     internal IncidentStatusChange(
-        Guid incidentId,
-        IncidentStatus previousStatus,
-        IncidentStatus newStatus,
-        DateTimeOffset changedAtUtc)
+    Guid incidentId,
+    IncidentStatus previousStatus,
+    IncidentStatus newStatus,
+    DateTimeOffset changedAtUtc,
+    string changedByUserId)
     {
         Id = Guid.NewGuid();
         IncidentId = incidentId;
         PreviousStatus = previousStatus;
         NewStatus = newStatus;
         ChangedAtUtc = changedAtUtc;
+        ChangedByUserId = changedByUserId;
     }
 
     public Guid Id { get; private set; }
@@ -26,4 +28,6 @@ public sealed class IncidentStatusChange
     public IncidentStatus NewStatus { get; private set; }
 
     public DateTimeOffset ChangedAtUtc { get; private set; }
+
+    public string ChangedByUserId { get; private set; } = string.Empty;
 }

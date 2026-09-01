@@ -58,12 +58,12 @@ public sealed class AuthorizationTests
     [Fact]
     public async Task UpdateStatus_AsResponder_IsAuthorized()
     {
-        var token = await CreateResponderTokenAsync();
+        var responder = await CreateResponderTokenAsync();
 
         _client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue(
                 "Bearer",
-                token);
+                responder.Token);
 
         var response = await _client.PatchAsJsonAsync(
             $"/api/incidents/{Guid.NewGuid()}/status",
@@ -80,6 +80,72 @@ public sealed class AuthorizationTests
             HttpStatusCode.Unauthorized,
             response.StatusCode);
     }
+    [Fact]
+public async Task UpdateStatus_AsResponder_RecordsActorInHistory()
+{
+    var reporterToken =
+        await RegisterReporterAsync();
+
+    _client.DefaultRequestHeaders.Authorization =
+        new AuthenticationHeaderValue(
+            "Bearer",
+            reporterToken);
+
+    var createResponse = await _client.PostAsJsonAsync(
+        "/api/incidents",
+        new
+        {
+            title = "Audit actor integration test",
+            description = "Verify responder identity is recorded.",
+            priority = "Medium"
+        });
+
+    createResponse.EnsureSuccessStatusCode();
+
+    using var createDocument = JsonDocument.Parse(
+        await createResponse.Content.ReadAsStringAsync());
+
+    var incidentId =
+        createDocument.RootElement
+            .GetProperty("id")
+            .GetGuid();
+
+    var responder =
+        await CreateResponderTokenAsync();
+
+    _client.DefaultRequestHeaders.Authorization =
+        new AuthenticationHeaderValue(
+            "Bearer",
+            responder.Token);
+
+    var updateResponse = await _client.PatchAsJsonAsync(
+        $"/api/incidents/{incidentId}/status",
+        new
+        {
+            status = "Triaged"
+        });
+
+    updateResponse.EnsureSuccessStatusCode();
+
+    var historyResponse = await _client.GetAsync(
+        $"/api/incidents/{incidentId}/history");
+
+    historyResponse.EnsureSuccessStatusCode();
+
+    using var historyDocument = JsonDocument.Parse(
+        await historyResponse.Content.ReadAsStringAsync());
+
+    var historyEntry =
+        historyDocument.RootElement
+            .EnumerateArray()
+            .Single();
+
+    Assert.Equal(
+        responder.UserId,
+        historyEntry
+            .GetProperty("changedByUserId")
+            .GetString());
+}
     [Fact]
     public async Task GetIncident_AsDifferentReporter_ReturnsNotFound()
     {
@@ -257,7 +323,7 @@ public sealed class AuthorizationTests
             ?? throw new InvalidOperationException(
                 "Access token was not returned.");
     }
-    private async Task<string> CreateResponderTokenAsync()
+    private async Task<(string Token, string UserId)> CreateResponderTokenAsync()
     {
         using var scope =
             _factory.Services.CreateScope();
@@ -312,6 +378,6 @@ public sealed class AuthorizationTests
         var token =
             await tokenService.CreateTokenAsync(user);
 
-        return token.Token;
+        return (token.Token, user.Id);
     }
 }
