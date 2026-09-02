@@ -1,5 +1,9 @@
 import { AsyncPipe, DatePipe } from '@angular/common';
-import { HttpClient } from '@angular/common/http';
+import {
+  CreateIncidentRequest,
+  IncidentService,
+  UpdateIncidentStatusRequest
+} from '../../core/services/incident.service';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -24,16 +28,6 @@ import {
   IncidentPriority,
   IncidentStatus
 } from '../../core/models/incident';
-
-interface CreateIncidentRequest {
-  title: string;
-  description: string;
-  priority: IncidentPriority;
-}
-
-interface UpdateIncidentStatusRequest {
-  status: IncidentStatus;
-}
 
 @Component({
   selector: 'app-incident-list',
@@ -204,8 +198,7 @@ interface UpdateIncidentStatusRequest {
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class IncidentListComponent {
-  private readonly http = inject(HttpClient);
-  private readonly apiUrl = 'https://localhost:7043/api/incidents';
+  private readonly incidentService = inject(IncidentService);
   private readonly refreshIncidents = new BehaviorSubject<void>(undefined);
 
   protected readonly priorities: IncidentPriority[] = [
@@ -276,19 +269,19 @@ export class IncidentListComponent {
   });
 
   protected readonly incidents$ = this.refreshIncidents.pipe(
-    switchMap(() => {
-      this.loadError.set('');
+  switchMap(() => {
+    this.loadError.set('');
 
-      return this.http.get<Incident[]>(this.apiUrl).pipe(
-        catchError(() => {
-          this.loadError.set(
-            'Incidents could not be loaded. Confirm that the API is running.'
-          );
-          return of([]);
-        })
-      );
-    })
-  );
+    return this.incidentService.getIncidents().pipe(
+      catchError(() => {
+        this.loadError.set(
+          'Incidents could not be loaded. Confirm that the API is running.'
+        );
+        return of([]);
+      })
+    );
+  })
+);
 
   protected toggleCreateForm(): void {
     this.showCreateForm.update(current => !current);
@@ -310,21 +303,21 @@ export class IncidentListComponent {
     this.submitting.set(true);
     this.saveError.set('');
 
-    this.http
-      .post<Incident>(this.apiUrl, request)
-      .pipe(finalize(() => this.submitting.set(false)))
-      .subscribe({
-        next: () => {
-          this.resetForm();
-          this.showCreateForm.set(false);
-          this.refreshIncidents.next();
-        },
-        error: () => {
-          this.saveError.set(
-            'The incident could not be created. Review the information and try again.'
-          );
-        }
-      });
+    this.incidentService
+  .createIncident(request)
+  .pipe(finalize(() => this.submitting.set(false)))
+  .subscribe({
+    next: () => {
+      this.resetForm();
+      this.showCreateForm.set(false);
+      this.refreshIncidents.next();
+    },
+    error: () => {
+      this.saveError.set(
+        'The incident could not be created. Review the information and try again.'
+      );
+    }
+  });
   }
 
   protected updateStatus(
@@ -338,20 +331,20 @@ export class IncidentListComponent {
     this.updatingIncidentId.set(incidentId);
     this.statusError.set('');
 
-    this.http
-      .patch<Incident>(
-        `${this.apiUrl}/${incidentId}/status`,
-        request
-      )
-      .pipe(finalize(() => this.updatingIncidentId.set(null)))
-      .subscribe({
-        next: () => this.refreshIncidents.next(),
-        error: () => {
-          this.statusError.set(
-            'The incident status could not be updated. Refresh the queue and try again.'
-          );
-        }
-      });
+    this.incidentService
+  .updateStatus(
+    incidentId,
+    request
+  )
+  .pipe(finalize(() => this.updatingIncidentId.set(null)))
+  .subscribe({
+    next: () => this.refreshIncidents.next(),
+    error: () => {
+      this.statusError.set(
+        'The incident status could not be updated. Refresh the queue and try again.'
+      );
+    }
+  });
   }
 
   private resetForm(): void {
