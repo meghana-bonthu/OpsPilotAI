@@ -24,7 +24,6 @@ public sealed class AuthorizationTests
         _factory = factory;
         _client = factory.CreateClient();
     }
-
     [Fact]
     public async Task GetIncidents_WithoutToken_ReturnsUnauthorized()
     {
