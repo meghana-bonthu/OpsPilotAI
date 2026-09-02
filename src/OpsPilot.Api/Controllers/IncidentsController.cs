@@ -152,6 +152,94 @@ public sealed class IncidentsController(
         return Ok(history);
     }
 
+    [HttpGet("{id:guid}/activity")]
+    [ProducesResponseType<IReadOnlyList<IncidentActivityResponse>>(
+        StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<
+        ActionResult<IReadOnlyList<IncidentActivityResponse>>> GetActivity(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        var incidentQuery = dbContext.Incidents
+            .AsNoTracking()
+            .AsQueryable();
+
+        var hasElevatedAccess =
+            User.IsInRole("Responder") ||
+            User.IsInRole("Administrator");
+
+        if (!hasElevatedAccess)
+        {
+            var reporterUserId =
+                User.FindFirstValue(
+                    ClaimTypes.NameIdentifier);
+
+            if (string.IsNullOrWhiteSpace(reporterUserId))
+            {
+                return Unauthorized();
+            }
+
+            incidentQuery = incidentQuery.Where(
+                incident =>
+                    incident.ReporterUserId == reporterUserId);
+        }
+
+        var incident = await incidentQuery
+            .SingleOrDefaultAsync(
+                current => current.Id == id,
+                cancellationToken);
+
+        if (incident is null)
+        {
+            return NotFound();
+        }
+
+        var statusChanges = await dbContext.IncidentStatusChanges
+            .AsNoTracking()
+            .Where(change => change.IncidentId == id)
+            .Select(change => new IncidentActivityResponse(
+                "StatusChanged",
+                change.ChangedAtUtc,
+                change.ChangedByUserId,
+                change.PreviousStatus,
+                change.NewStatus,
+                null))
+            .ToListAsync(cancellationToken);
+
+        var teamAssignments = await dbContext.IncidentTeamAssignments
+            .AsNoTracking()
+            .Where(assignment => assignment.IncidentId == id)
+            .Select(assignment => new IncidentActivityResponse(
+                "TeamAssigned",
+                assignment.AssignedAtUtc,
+                assignment.AssignedByUserId,
+                null,
+                null,
+                assignment.TeamId))
+            .ToListAsync(cancellationToken);
+
+        var activity = new List<IncidentActivityResponse>
+        {
+            new(
+                "IncidentCreated",
+                incident.CreatedAtUtc,
+                incident.ReporterUserId,
+                null,
+                null,
+                null)
+        };
+
+        activity.AddRange(statusChanges);
+        activity.AddRange(teamAssignments);
+
+        var chronologicalActivity = activity
+            .OrderBy(item => item.OccurredAtUtc)
+            .ToList();
+
+        return Ok(chronologicalActivity);
+    }
+
     [Authorize(Policy = "ReporterOnly")]
     [HttpPost]
     [ProducesResponseType<IncidentResponse>(
@@ -282,8 +370,8 @@ public sealed class IncidentsController(
         }
 
         var assignedByUserId =
-    User.FindFirstValue(
-        ClaimTypes.NameIdentifier);
+            User.FindFirstValue(
+                ClaimTypes.NameIdentifier);
 
         if (string.IsNullOrWhiteSpace(assignedByUserId))
         {
@@ -304,12 +392,12 @@ public sealed class IncidentsController(
     private static IncidentResponse ToResponse(Incident incident)
     {
         return new IncidentResponse(
-    incident.Id,
-    incident.Title,
-    incident.Description,
-    incident.Priority,
-    incident.Status,
-    incident.CreatedAtUtc,
-    incident.TeamId);
+            incident.Id,
+            incident.Title,
+            incident.Description,
+            incident.Priority,
+            incident.Status,
+            incident.CreatedAtUtc,
+            incident.TeamId);
     }
 }

@@ -29,3 +29,16 @@ public sealed record IncidentStatusChangeResponse(
     IncidentStatus NewStatus,
     DateTimeOffset ChangedAtUtc,
     string ChangedByUserId);
+public sealed record IncidentTeamAssignmentResponse(
+    Guid Id,
+    Guid TeamId,
+    DateTimeOffset AssignedAtUtc,
+    string AssignedByUserId);
+
+public sealed record IncidentActivityResponse(
+    string Type,
+    DateTimeOffset OccurredAtUtc,
+    string ActorUserId,
+    IncidentStatus? PreviousStatus,
+    IncidentStatus? NewStatus,
+    Guid? TeamId);

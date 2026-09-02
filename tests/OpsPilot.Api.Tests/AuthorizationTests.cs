@@ -302,6 +302,199 @@ public sealed class AuthorizationTests
             response.StatusCode);
     }
     [Fact]
+    public async Task GetActivity_ReturnsChronologicalIncidentActivity()
+    {
+        var reporterToken =
+            await RegisterReporterAsync();
+
+        _client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue(
+                "Bearer",
+                reporterToken);
+
+        var createResponse = await _client.PostAsJsonAsync(
+            "/api/incidents",
+            new
+            {
+                title = "Activity history integration test",
+                description = "Verify chronological incident activity history.",
+                priority = "Medium"
+            });
+
+        createResponse.EnsureSuccessStatusCode();
+
+        using var createDocument = JsonDocument.Parse(
+            await createResponse.Content.ReadAsStringAsync());
+
+        var incidentId =
+            createDocument.RootElement
+                .GetProperty("id")
+                .GetGuid();
+
+        Guid teamId;
+
+        using (var scope = _factory.Services.CreateScope())
+        {
+            var dbContext =
+                scope.ServiceProvider
+                    .GetRequiredService<OpsPilotDbContext>();
+
+            var team = new Team(
+                $"Activity-{Guid.NewGuid():N}");
+
+            dbContext.Teams.Add(team);
+
+            await dbContext.SaveChangesAsync();
+
+            teamId = team.Id;
+        }
+
+        var responder =
+            await CreateResponderTokenAsync();
+
+        _client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue(
+                "Bearer",
+                responder.Token);
+
+        var assignmentResponse =
+            await _client.PatchAsJsonAsync(
+                $"/api/incidents/{incidentId}/team",
+                new
+                {
+                    teamId
+                });
+
+        assignmentResponse.EnsureSuccessStatusCode();
+
+        var statusResponse =
+            await _client.PatchAsJsonAsync(
+                $"/api/incidents/{incidentId}/status",
+                new
+                {
+                    status = "Triaged"
+                });
+
+        statusResponse.EnsureSuccessStatusCode();
+
+        var activityResponse = await _client.GetAsync(
+            $"/api/incidents/{incidentId}/activity");
+
+        activityResponse.EnsureSuccessStatusCode();
+
+        using var activityDocument = JsonDocument.Parse(
+            await activityResponse.Content.ReadAsStringAsync());
+
+        var activity =
+            activityDocument.RootElement
+                .EnumerateArray()
+                .ToArray();
+
+        Assert.Equal(3, activity.Length);
+
+        Assert.Equal(
+            "IncidentCreated",
+            activity[0]
+                .GetProperty("type")
+                .GetString());
+
+        Assert.Equal(
+            "TeamAssigned",
+            activity[1]
+                .GetProperty("type")
+                .GetString());
+
+        Assert.Equal(
+            teamId,
+            activity[1]
+                .GetProperty("teamId")
+                .GetGuid());
+
+        Assert.Equal(
+            responder.UserId,
+            activity[1]
+                .GetProperty("actorUserId")
+                .GetString());
+
+        Assert.Equal(
+            "StatusChanged",
+            activity[2]
+                .GetProperty("type")
+                .GetString());
+
+        Assert.Equal(
+            "New",
+            activity[2]
+                .GetProperty("previousStatus")
+                .GetString());
+
+        Assert.Equal(
+            "Triaged",
+            activity[2]
+                .GetProperty("newStatus")
+                .GetString());
+
+        Assert.Equal(
+            responder.UserId,
+            activity[2]
+                .GetProperty("actorUserId")
+                .GetString());
+
+        var occurredAtUtc = activity
+            .Select(item =>
+                item.GetProperty("occurredAtUtc").GetDateTimeOffset())
+            .ToArray();
+
+        Assert.Equal(
+            occurredAtUtc.OrderBy(value => value),
+            occurredAtUtc);
+    }
+    [Fact]
+    public async Task GetActivity_AsDifferentReporter_ReturnsNotFound()
+    {
+        var reporterAToken =
+            await RegisterReporterAsync();
+
+        _client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue(
+                "Bearer",
+                reporterAToken);
+
+        var createResponse = await _client.PostAsJsonAsync(
+            "/api/incidents",
+            new
+            {
+                title = "Activity ownership test",
+                description = "Created by Reporter A.",
+                priority = "Medium"
+            });
+
+        createResponse.EnsureSuccessStatusCode();
+
+        using var createDocument = JsonDocument.Parse(
+            await createResponse.Content.ReadAsStringAsync());
+
+        var incidentId =
+            createDocument.RootElement
+                .GetProperty("id")
+                .GetGuid();
+
+        var reporterBToken =
+            await RegisterReporterAsync();
+
+        _client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue(
+                "Bearer",
+                reporterBToken);
+
+        var response = await _client.GetAsync(
+            $"/api/incidents/{incidentId}/activity");
+
+        Assert.Equal(
+            HttpStatusCode.NotFound,
+            response.StatusCode);
+    }
+    [Fact]
     public async Task AssignTeam_AsResponder_AssignsExistingTeam()
     {
         var reporterToken =
