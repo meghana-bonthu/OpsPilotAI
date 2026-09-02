@@ -5,7 +5,7 @@
   "scripts": {
     "start": "ng serve",
     "build": "ng build",
-    "test": "ng test --watch=false"
+    "test": "ng test"
   },
   "dependencies": {
     "@angular/animations": "^21.2.22",
@@ -24,6 +24,8 @@
     "@angular/build": "^21.2.22",
     "@angular/cli": "^21.2.22",
     "@angular/compiler-cli": "^21.2.22",
-    "typescript": "~5.9.3"
+    "jsdom": "^29.1.1",
+    "typescript": "~5.9.3",
+    "vitest": "^4.1.11"
   }
 }
