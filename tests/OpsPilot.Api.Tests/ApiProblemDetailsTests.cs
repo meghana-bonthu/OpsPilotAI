@@ -8,12 +8,12 @@ using System.Net.Http.Json;
 namespace OpsPilot.Api.Tests;
 
 public sealed class ApiProblemDetailsTests
-    : IClassFixture<WebApplicationFactory<Program>>
+    : IClassFixture<OpsPilotApiFactory>
 {
     private readonly HttpClient _client;
 
     public ApiProblemDetailsTests(
-        WebApplicationFactory<Program> factory)
+        OpsPilotApiFactory factory)
     {
         _client = factory.WithWebHostBuilder(builder =>
         {

@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using OpsPilot.Api.Data;
 using Testcontainers.MsSql;
 
@@ -37,15 +36,22 @@ public sealed class OpsPilotApiFactory
     protected override void ConfigureWebHost(
         IWebHostBuilder builder)
     {
-        builder.ConfigureAppConfiguration(
-            (_, configuration) =>
-            {
-                configuration.AddInMemoryCollection(
-                    new Dictionary<string, string?>
-                    {
-                        ["ConnectionStrings:OpsPilot"] =
-                            _sqlContainer.GetConnectionString()
-                    });
-            });
+        builder.UseSetting(
+            "ConnectionStrings:OpsPilot",
+            _sqlContainer.GetConnectionString());
+
+        builder.UseSetting(
+            "Jwt:Key",
+            Convert.ToBase64String(
+                System.Text.Encoding.UTF8.GetBytes(
+                    "OpsPilotAI-Test-Only-JWT-Signing-Key-2026")));
+
+        builder.UseSetting(
+            "Jwt:Issuer",
+            "OpsPilot.Api");
+
+        builder.UseSetting(
+            "Jwt:Audience",
+            "OpsPilot.Client");
     }
 }

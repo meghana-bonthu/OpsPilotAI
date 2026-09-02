@@ -13,13 +13,13 @@ using OpsPilot.Api.Security;
 namespace OpsPilot.Api.Tests;
 
 public sealed class AuthorizationTests
-    : IClassFixture<WebApplicationFactory<Program>>
+    : IClassFixture<OpsPilotApiFactory>
 {
-    private readonly WebApplicationFactory<Program> _factory;
+    private readonly OpsPilotApiFactory _factory;
     private readonly HttpClient _client;
 
     public AuthorizationTests(
-        WebApplicationFactory<Program> factory)
+        OpsPilotApiFactory factory)
     {
         _factory = factory;
         _client = factory.CreateClient();
