@@ -45,6 +45,7 @@ builder.Services.AddDbContext<OpsPilotDbContext>(options =>
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<RabbitMqEventPublisher>();
 builder.Services.AddHostedService<OutboxProcessor>();
+builder.Services.AddHostedService<NotificationWorker>();
 builder.Services
     .AddIdentityCore<ApplicationUser>(options =>
     {
