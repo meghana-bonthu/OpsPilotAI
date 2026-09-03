@@ -10,6 +10,7 @@ using Microsoft.IdentityModel.Tokens;
 using OpsPilot.Api.Security;
 using OpsPilot.Api.Background;
 using OpsPilot.Api.Messaging;
+using OpsPilot.Api.AI;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -44,6 +45,7 @@ builder.Services.AddDbContext<OpsPilotDbContext>(options =>
             "ConnectionStrings__OpsPilot is required.")));
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<RabbitMqEventPublisher>();
+builder.Services.AddScoped<IIncidentSummaryGateway, LocalIncidentSummaryGateway>();
 if (builder.Configuration.GetValue("Caching:UseRedis", true))
 {
     builder.Services.AddStackExchangeRedisCache(options =>

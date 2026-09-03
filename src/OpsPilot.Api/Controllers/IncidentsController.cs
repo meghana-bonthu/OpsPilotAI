@@ -7,6 +7,7 @@ using OpsPilot.Api.Domain;
 using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.Extensions.Caching.Distributed;
+using OpsPilot.Api.AI;
 
 namespace OpsPilot.Api.Controllers;
 
@@ -15,7 +16,8 @@ namespace OpsPilot.Api.Controllers;
 [Authorize]
 public sealed class IncidentsController(
     OpsPilotDbContext dbContext,
-    IDistributedCache cache) : ControllerBase
+    IDistributedCache cache,
+    IIncidentSummaryGateway incidentSummaryGateway) : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType<IReadOnlyList<IncidentResponse>>(
@@ -131,6 +133,60 @@ public sealed class IncidentsController(
             : Ok(ToResponse(incident));
     }
 
+    [HttpGet("{id:guid}/summary")]
+    [ProducesResponseType<IncidentSummaryResponse>(
+        StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<IncidentSummaryResponse>> GetSummary(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        var query = dbContext.Incidents
+            .AsNoTracking()
+            .AsQueryable();
+
+        var hasElevatedAccess =
+            User.IsInRole("Responder") ||
+            User.IsInRole("Administrator");
+
+        if (!hasElevatedAccess)
+        {
+            var reporterUserId =
+                User.FindFirstValue(
+                    ClaimTypes.NameIdentifier);
+
+            if (string.IsNullOrWhiteSpace(reporterUserId))
+            {
+                return Unauthorized();
+            }
+
+            query = query.Where(
+                current =>
+                    current.ReporterUserId == reporterUserId);
+        }
+
+        var incident = await query
+            .SingleOrDefaultAsync(
+                current => current.Id == id,
+                cancellationToken);
+
+        if (incident is null)
+        {
+            return NotFound();
+        }
+
+        var summary =
+            await incidentSummaryGateway.GenerateSummaryAsync(
+                incident.Title,
+                incident.Description,
+                incident.Priority.ToString(),
+                cancellationToken);
+
+        return Ok(
+            new IncidentSummaryResponse(
+                incident.Id,
+                summary));
+    }
     [HttpGet("{id:guid}/history")]
     [ProducesResponseType<IReadOnlyList<IncidentStatusChangeResponse>>(
         StatusCodes.Status200OK)]

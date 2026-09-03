@@ -193,6 +193,102 @@ public sealed class AuthorizationTests
             response.StatusCode);
     }
     [Fact]
+    public async Task GetSummary_AsOwner_ReturnsSummary()
+    {
+        var reporterToken =
+            await RegisterReporterAsync();
+
+        _client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue(
+                "Bearer",
+                reporterToken);
+
+        var createResponse = await _client.PostAsJsonAsync(
+            "/api/incidents",
+            new
+            {
+                title = "Database connectivity issue",
+                description = "Users are unable to connect to the database.",
+                priority = "High"
+            });
+
+        createResponse.EnsureSuccessStatusCode();
+
+        using var createDocument = JsonDocument.Parse(
+            await createResponse.Content.ReadAsStringAsync());
+
+        var incidentId =
+            createDocument.RootElement
+                .GetProperty("id")
+                .GetGuid();
+
+        var response = await _client.GetAsync(
+            $"/api/incidents/{incidentId}/summary");
+
+        response.EnsureSuccessStatusCode();
+
+        using var summaryDocument = JsonDocument.Parse(
+            await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(
+            incidentId,
+            summaryDocument.RootElement
+                .GetProperty("incidentId")
+                .GetGuid());
+
+        Assert.Contains(
+            "Database connectivity issue",
+            summaryDocument.RootElement
+                .GetProperty("summary")
+                .GetString());
+    }
+    [Fact]
+    public async Task GetSummary_AsDifferentReporter_ReturnsNotFound()
+    {
+        var reporterAToken =
+            await RegisterReporterAsync();
+
+        _client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue(
+                "Bearer",
+                reporterAToken);
+
+        var createResponse = await _client.PostAsJsonAsync(
+            "/api/incidents",
+            new
+            {
+                title = "AI summary ownership test",
+                description = "Created by Reporter A.",
+                priority = "Medium"
+            });
+
+        createResponse.EnsureSuccessStatusCode();
+
+        using var createDocument = JsonDocument.Parse(
+            await createResponse.Content.ReadAsStringAsync());
+
+        var incidentId =
+            createDocument.RootElement
+                .GetProperty("id")
+                .GetGuid();
+
+        var reporterBToken =
+            await RegisterReporterAsync();
+
+        _client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue(
+                "Bearer",
+                reporterBToken);
+
+        var response = await _client.GetAsync(
+            $"/api/incidents/{incidentId}/summary");
+
+        Assert.Equal(
+            HttpStatusCode.NotFound,
+            response.StatusCode);
+    }
+
+    [Fact]
     public async Task GetIncidents_AsReporter_ReturnsOnlyOwnedIncidents()
     {
         var reporterAToken =
