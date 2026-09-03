@@ -44,8 +44,11 @@ builder.Services.AddDbContext<OpsPilotDbContext>(options =>
             "ConnectionStrings__OpsPilot is required.")));
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<RabbitMqEventPublisher>();
-builder.Services.AddHostedService<OutboxProcessor>();
-builder.Services.AddHostedService<NotificationWorker>();
+if (builder.Configuration.GetValue("Messaging:Enabled", true))
+{
+    builder.Services.AddHostedService<OutboxProcessor>();
+    builder.Services.AddHostedService<NotificationWorker>();
+}
 builder.Services
     .AddIdentityCore<ApplicationUser>(options =>
     {

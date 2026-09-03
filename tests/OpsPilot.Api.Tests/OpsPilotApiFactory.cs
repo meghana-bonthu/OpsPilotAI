@@ -39,17 +39,17 @@ public sealed class OpsPilotApiFactory
         builder.UseSetting(
             "ConnectionStrings:OpsPilot",
             _sqlContainer.GetConnectionString());
-
+        builder.UseSetting(
+            "Messaging:Enabled",
+            "false");
         builder.UseSetting(
             "Jwt:Key",
             Convert.ToBase64String(
                 System.Text.Encoding.UTF8.GetBytes(
                     "OpsPilotAI-Test-Only-JWT-Signing-Key-2026")));
-
         builder.UseSetting(
             "Jwt:Issuer",
             "OpsPilot.Api");
-
         builder.UseSetting(
             "Jwt:Audience",
             "OpsPilot.Client");
