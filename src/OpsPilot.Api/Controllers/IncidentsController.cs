@@ -5,6 +5,7 @@ using OpsPilot.Api.Contracts;
 using OpsPilot.Api.Data;
 using OpsPilot.Api.Domain;
 using System.Security.Claims;
+using System.Text.Json;
 
 namespace OpsPilot.Api.Controllers;
 
@@ -265,6 +266,21 @@ public sealed class IncidentsController(
             reporterUserId);
 
         dbContext.Incidents.Add(incident);
+
+        dbContext.OutboxMessages.Add(new OutboxMessage
+        {
+            Id = Guid.NewGuid(),
+            Type = "IncidentCreated",
+            Payload = JsonSerializer.Serialize(new
+            {
+                incident.Id,
+                incident.Title,
+                incident.Priority,
+                incident.ReporterUserId
+            }),
+            OccurredAtUtc = incident.CreatedAtUtc.UtcDateTime
+        });
+
         await dbContext.SaveChangesAsync(cancellationToken);
 
         var response = ToResponse(incident);
@@ -323,6 +339,22 @@ public sealed class IncidentsController(
         }
 
         dbContext.IncidentStatusChanges.Add(statusChange);
+
+        dbContext.OutboxMessages.Add(new OutboxMessage
+        {
+            Id = Guid.NewGuid(),
+            Type = "IncidentStatusChanged",
+            Payload = JsonSerializer.Serialize(new
+            {
+                incident.Id,
+                statusChange.PreviousStatus,
+                statusChange.NewStatus,
+                statusChange.ChangedByUserId,
+                statusChange.ChangedAtUtc
+            }),
+            OccurredAtUtc = statusChange.ChangedAtUtc.UtcDateTime
+        });
+
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return Ok(ToResponse(incident));
@@ -383,6 +415,20 @@ public sealed class IncidentsController(
             assignedByUserId);
 
         dbContext.IncidentTeamAssignments.Add(assignment);
+
+        dbContext.OutboxMessages.Add(new OutboxMessage
+        {
+            Id = Guid.NewGuid(),
+            Type = "IncidentTeamAssigned",
+            Payload = JsonSerializer.Serialize(new
+            {
+                incident.Id,
+                assignment.TeamId,
+                assignment.AssignedByUserId,
+                assignment.AssignedAtUtc
+            }),
+            OccurredAtUtc = assignment.AssignedAtUtc.UtcDateTime
+        });
 
         await dbContext.SaveChangesAsync(cancellationToken);
 

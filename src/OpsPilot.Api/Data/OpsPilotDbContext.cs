@@ -15,7 +15,8 @@ public sealed class OpsPilotDbContext(
 
     public DbSet<IncidentTeamAssignment> IncidentTeamAssignments =>
         Set<IncidentTeamAssignment>();
-
+    public DbSet<OutboxMessage> OutboxMessages =>
+        Set<OutboxMessage>();
     public DbSet<Team> Teams => Set<Team>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -127,5 +128,26 @@ public sealed class OpsPilotDbContext(
 
         team.HasIndex(current => current.Name)
             .IsUnique();
+        
+        var outboxMessage =
+            modelBuilder.Entity<OutboxMessage>();
+
+        outboxMessage.HasKey(message => message.Id);
+
+        outboxMessage.Property(message => message.Type)
+            .HasMaxLength(200)
+            .IsRequired();
+
+        outboxMessage.Property(message => message.Payload)
+            .IsRequired();
+
+        outboxMessage.Property(message => message.Error)
+            .HasMaxLength(2000);
+
+        outboxMessage.HasIndex(message => new
+        {
+            message.ProcessedAtUtc,
+            message.OccurredAtUtc
+        });
     }
 }
