@@ -43,6 +43,9 @@ public sealed class OpsPilotApiFactory
             "Messaging:Enabled",
             "false");
         builder.UseSetting(
+            "Caching:UseRedis",
+            "false");
+        builder.UseSetting(
             "Jwt:Key",
             Convert.ToBase64String(
                 System.Text.Encoding.UTF8.GetBytes(

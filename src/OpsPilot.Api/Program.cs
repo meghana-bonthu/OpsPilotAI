@@ -44,6 +44,21 @@ builder.Services.AddDbContext<OpsPilotDbContext>(options =>
             "ConnectionStrings__OpsPilot is required.")));
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<RabbitMqEventPublisher>();
+if (builder.Configuration.GetValue("Caching:UseRedis", true))
+{
+    builder.Services.AddStackExchangeRedisCache(options =>
+    {
+        options.Configuration =
+            builder.Configuration["Redis:ConnectionString"]
+            ?? "localhost:6379";
+
+        options.InstanceName = "OpsPilot:";
+    });
+}
+else
+{
+    builder.Services.AddDistributedMemoryCache();
+}
 if (builder.Configuration.GetValue("Messaging:Enabled", true))
 {
     builder.Services.AddHostedService<OutboxProcessor>();

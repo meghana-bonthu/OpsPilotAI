@@ -6,6 +6,7 @@ using OpsPilot.Api.Data;
 using OpsPilot.Api.Domain;
 using System.Security.Claims;
 using System.Text.Json;
+using Microsoft.Extensions.Caching.Distributed;
 
 namespace OpsPilot.Api.Controllers;
 
@@ -13,7 +14,8 @@ namespace OpsPilot.Api.Controllers;
 [Route("api/incidents")]
 [Authorize]
 public sealed class IncidentsController(
-    OpsPilotDbContext dbContext) : ControllerBase
+    OpsPilotDbContext dbContext,
+    IDistributedCache cache) : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType<IReadOnlyList<IncidentResponse>>(
@@ -28,21 +30,45 @@ public sealed class IncidentsController(
         var hasElevatedAccess =
             User.IsInRole("Responder") ||
             User.IsInRole("Administrator");
+        string cacheKey;
 
-        if (!hasElevatedAccess)
+        if (hasElevatedAccess)
+        {
+            cacheKey = "incidents:all:elevated";
+        }
+        else
         {
             var reporterUserId =
-                User.FindFirstValue(
-                    ClaimTypes.NameIdentifier);
+            User.FindFirstValue(
+                ClaimTypes.NameIdentifier);
 
             if (string.IsNullOrWhiteSpace(reporterUserId))
             {
                 return Unauthorized();
             }
 
+            cacheKey = $"incidents:reporter:{reporterUserId}";
+
             query = query.Where(
                 incident =>
-                    incident.ReporterUserId == reporterUserId);
+                incident.ReporterUserId == reporterUserId);
+        }
+
+        var cachedIncidents =
+            await cache.GetStringAsync(
+            cacheKey,
+            cancellationToken);
+
+        if (!string.IsNullOrWhiteSpace(cachedIncidents))
+        {
+            var cachedResponse =
+            JsonSerializer.Deserialize<List<IncidentResponse>>(
+                cachedIncidents);
+
+            if (cachedResponse is not null)
+            {
+                return Ok(cachedResponse);
+            }
         }
 
         var incidents = await query
@@ -52,6 +78,15 @@ public sealed class IncidentsController(
                 incident => ToResponse(incident))
             .ToListAsync(cancellationToken);
 
+        await cache.SetStringAsync(
+            cacheKey,
+            JsonSerializer.Serialize(incidents),
+            new DistributedCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow =
+                TimeSpan.FromMinutes(5)
+            },
+            cancellationToken);
         return Ok(incidents);
     }
 
@@ -283,6 +318,14 @@ public sealed class IncidentsController(
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
+        await cache.RemoveAsync(
+            "incidents:all:elevated",
+            cancellationToken);
+
+        await cache.RemoveAsync(
+            $"incidents:reporter:{reporterUserId}",
+            cancellationToken);
+
         var response = ToResponse(incident);
 
         return CreatedAtRoute(
@@ -357,6 +400,13 @@ public sealed class IncidentsController(
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
+        await cache.RemoveAsync(
+            "incidents:all:elevated",
+            cancellationToken);
+
+        await cache.RemoveAsync(
+            $"incidents:reporter:{incident.ReporterUserId}",
+            cancellationToken);
         return Ok(ToResponse(incident));
     }
 
@@ -432,6 +482,13 @@ public sealed class IncidentsController(
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
+        await cache.RemoveAsync(
+            "incidents:all:elevated",
+            cancellationToken);
+
+        await cache.RemoveAsync(
+            $"incidents:reporter:{incident.ReporterUserId}",
+            cancellationToken);
         return Ok(ToResponse(incident));
     }
 
