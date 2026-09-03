@@ -8,6 +8,7 @@ using OpsPilot.Api.Domain;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using OpsPilot.Api.Security;
+using OpsPilot.Api.Background;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -41,6 +42,7 @@ builder.Services.AddDbContext<OpsPilotDbContext>(options =>
         ?? throw new InvalidOperationException(
             "ConnectionStrings__OpsPilot is required.")));
 builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddHostedService<OutboxProcessor>();
 builder.Services
     .AddIdentityCore<ApplicationUser>(options =>
     {
