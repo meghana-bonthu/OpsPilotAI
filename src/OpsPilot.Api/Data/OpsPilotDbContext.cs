@@ -12,6 +12,8 @@ public sealed class OpsPilotDbContext(
 
     public DbSet<IncidentStatusChange> IncidentStatusChanges =>
         Set<IncidentStatusChange>();
+    public DbSet<ProcessedMessage> ProcessedMessages =>
+        Set<ProcessedMessage>();
 
     public DbSet<IncidentTeamAssignment> IncidentTeamAssignments =>
         Set<IncidentTeamAssignment>();
@@ -73,6 +75,10 @@ public sealed class OpsPilotDbContext(
 
         incident.Navigation(current => current.TeamAssignmentHistory)
             .UsePropertyAccessMode(PropertyAccessMode.Field);
+        var processedMessage =
+            modelBuilder.Entity<ProcessedMessage>();
+
+        processedMessage.HasKey(message => message.MessageId);
 
         var statusChange =
             modelBuilder.Entity<IncidentStatusChange>();

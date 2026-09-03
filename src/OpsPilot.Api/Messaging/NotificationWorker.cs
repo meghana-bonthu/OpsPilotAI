@@ -1,11 +1,14 @@
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
-using System.Text;
+using Microsoft.EntityFrameworkCore;
+using OpsPilot.Api.Data;
+using OpsPilot.Api.Domain;
 
 namespace OpsPilot.Api.Messaging;
 
 public sealed class NotificationWorker(
     IConfiguration configuration,
+    IServiceScopeFactory scopeFactory,
     ILogger<NotificationWorker> logger)
     : BackgroundService
 {
@@ -49,13 +52,62 @@ public sealed class NotificationWorker(
 
         consumer.ReceivedAsync += async (_, eventArgs) =>
         {
-            var body = Encoding.UTF8.GetString(
-                eventArgs.Body.Span);
+            var messageIdText =
+                eventArgs.BasicProperties.MessageId;
+
+            if (!Guid.TryParse(messageIdText, out var messageId))
+            {
+                logger.LogWarning(
+                "Received RabbitMQ message without a valid MessageId.");
+
+                await channel.BasicNackAsync(
+                eventArgs.DeliveryTag,
+                multiple: false,
+                requeue: false,
+                cancellationToken: stoppingToken);
+
+                return;
+            }
+
+            using var scope =
+                scopeFactory.CreateScope();
+
+            var dbContext = scope.ServiceProvider
+                .GetRequiredService<OpsPilotDbContext>();
+
+            var alreadyProcessed =
+                await dbContext.ProcessedMessages
+                    .AnyAsync(
+                        message => message.MessageId == messageId,
+                        stoppingToken);
+
+            if (alreadyProcessed)
+            {
+                logger.LogInformation(
+                "Skipping duplicate message {MessageId}.",
+                messageId);
+
+                await channel.BasicAckAsync(
+                eventArgs.DeliveryTag,
+                multiple: false,
+                cancellationToken: stoppingToken);
+
+                return;
+            }
 
             logger.LogInformation(
-                "Notification worker received event {EventType}: {Payload}",
-                eventArgs.BasicProperties.Type,
-                body);
+                "Notification worker received message {MessageId} of type {EventType}.",
+                messageId,
+                eventArgs.BasicProperties.Type);
+            dbContext.ProcessedMessages.Add(
+                new ProcessedMessage
+                {
+                    MessageId = messageId,
+                    ProcessedAtUtc = DateTime.UtcNow
+                });
+
+            await dbContext.SaveChangesAsync(
+                stoppingToken);
 
             await channel.BasicAckAsync(
                 eventArgs.DeliveryTag,
