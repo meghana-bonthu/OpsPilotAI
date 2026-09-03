@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using OpsPilot.Api.Security;
 using OpsPilot.Api.Background;
+using OpsPilot.Api.Messaging;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -42,6 +43,7 @@ builder.Services.AddDbContext<OpsPilotDbContext>(options =>
         ?? throw new InvalidOperationException(
             "ConnectionStrings__OpsPilot is required.")));
 builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<RabbitMqEventPublisher>();
 builder.Services.AddHostedService<OutboxProcessor>();
 builder.Services
     .AddIdentityCore<ApplicationUser>(options =>
