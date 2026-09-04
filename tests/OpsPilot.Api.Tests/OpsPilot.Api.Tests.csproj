@@ -26,4 +26,9 @@
     <ProjectReference Include="..\..\src\OpsPilot.Api\OpsPilot.Api.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="Evaluation\incident-ai-evaluation.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
 </Project>

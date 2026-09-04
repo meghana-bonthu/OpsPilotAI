@@ -167,6 +167,9 @@ public sealed class IncidentsController(
         {
             Response.Headers["X-OpsPilot-Search-Mode"] =
                 "semantic";
+
+            Response.Headers["X-OpsPilot-AI-Version"] =
+                AiPromptVersions.IncidentSemanticSearch;
             if (semanticIds.Count == 0)
             {
                 return Ok(
@@ -314,7 +317,8 @@ public sealed class IncidentsController(
         return Ok(
             new IncidentSummaryResponse(
                 incident.Id,
-                summary));
+                summary,
+                AiPromptVersions.IncidentSummary));
     }
     [Authorize(Policy = "ResponderOrAdministrator")]
     [HttpGet("{id:guid}/suggested-actions")]
@@ -353,6 +357,7 @@ public sealed class IncidentsController(
                             suggestedAction.Id,
                             suggestedAction.IncidentId,
                             suggestedAction.Action,
+                            suggestedAction.PromptVersion,
                             suggestedAction.Status,
                             suggestedAction.CreatedAtUtc,
                             suggestedAction.DecidedAtUtc,
@@ -403,6 +408,7 @@ public sealed class IncidentsController(
             new IncidentSuggestedAction(
                 incident.Id,
                 action,
+                AiPromptVersions.IncidentSuggestedAction,
                 DateTimeOffset.UtcNow);
 
         dbContext.IncidentSuggestedActions.Add(
@@ -903,6 +909,7 @@ public sealed class IncidentsController(
             suggestedAction.Id,
             suggestedAction.IncidentId,
             suggestedAction.Action,
+            suggestedAction.PromptVersion,
             suggestedAction.Status,
             suggestedAction.CreatedAtUtc,
             suggestedAction.DecidedAtUtc,

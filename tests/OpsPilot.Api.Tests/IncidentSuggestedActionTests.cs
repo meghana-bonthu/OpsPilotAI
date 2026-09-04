@@ -1,3 +1,5 @@
+using OpsPilot.Api.AI;
+
 using OpsPilot.Api.Domain;
 
 namespace OpsPilot.Api.Tests;
@@ -13,6 +15,7 @@ public sealed class IncidentSuggestedActionTests
         var suggestedAction = new IncidentSuggestedAction(
             incidentId,
             "  Restart the application service.  ",
+            AiPromptVersions.IncidentSuggestedAction,
             createdAtUtc);
 
         Assert.NotEqual(
@@ -28,6 +31,10 @@ public sealed class IncidentSuggestedActionTests
             suggestedAction.Action);
 
         Assert.Equal(
+            AiPromptVersions.IncidentSuggestedAction,
+            suggestedAction.PromptVersion);
+
+        Assert.Equal(
             SuggestedActionStatus.Pending,
             suggestedAction.Status);
 
@@ -40,6 +47,21 @@ public sealed class IncidentSuggestedActionTests
 
         Assert.Null(
             suggestedAction.DecidedByUserId);
+    }
+
+    [Fact]
+    public void Constructor_WithMissingPromptVersion_Throws()
+    {
+        var exception = Assert.Throws<ArgumentException>(
+            () => new IncidentSuggestedAction(
+                Guid.NewGuid(),
+                "Restart the application service.",
+                " ",
+                DateTimeOffset.UtcNow));
+
+        Assert.Equal(
+            "Prompt version is required. (Parameter 'promptVersion')",
+            exception.Message);
     }
 
     [Fact]
@@ -141,6 +163,7 @@ public sealed class IncidentSuggestedActionTests
         return new IncidentSuggestedAction(
             Guid.NewGuid(),
             "Restart the application service.",
+            AiPromptVersions.IncidentSuggestedAction,
             DateTimeOffset.UtcNow);
     }
 }

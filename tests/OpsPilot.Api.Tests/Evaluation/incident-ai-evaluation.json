@@ -1,0 +1,65 @@
+{
+  "datasetVersion": "incident-ai-eval-v1",
+  "cases": [
+    {
+      "id": "summary-database-outage-001",
+      "feature": "incident-summary",
+      "promptVersion": "incident-summary-v1",
+      "input": {
+        "title": "Database outage",
+        "description": "Primary database is unavailable. Contact test.user@example.com for details.",
+        "priority": "High"
+      },
+      "expected": {
+        "mustContain": [
+          "Database outage",
+          "High"
+        ],
+        "mustNotContain": [
+          "test.user@example.com"
+        ]
+      }
+    },
+    {
+      "id": "suggested-action-authentication-001",
+      "feature": "incident-suggested-action",
+      "promptVersion": "incident-suggested-action-v1",
+      "input": {
+        "title": "Authentication failure",
+        "description": "Users cannot sign in to the application.",
+        "priority": "High",
+        "status": "Triaged"
+      },
+      "expected": {
+        "mustContain": [
+          "high",
+          "Authentication failure",
+          "Triaged"
+        ]
+      }
+    },
+    {
+      "id": "semantic-search-database-001",
+      "feature": "incident-semantic-search",
+      "promptVersion": "incident-semantic-search-v1",
+      "input": {
+        "query": "database unavailable",
+        "documents": [
+          {
+            "id": "11111111-1111-1111-1111-111111111111",
+            "title": "SQL server down",
+            "description": "Production database cannot be reached."
+          },
+          {
+            "id": "22222222-2222-2222-2222-222222222222",
+            "title": "Payment screen styling",
+            "description": "Button spacing needs adjustment."
+          }
+        ]
+      },
+      "expected": {
+        "firstResultId": "11111111-1111-1111-1111-111111111111"
+      }
+    }
+  ]
+}

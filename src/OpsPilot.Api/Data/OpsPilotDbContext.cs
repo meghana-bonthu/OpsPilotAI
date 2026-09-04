@@ -146,6 +146,10 @@ public sealed class OpsPilotDbContext(
             .HasMaxLength(2000)
             .IsRequired();
 
+        suggestedAction.Property(action => action.PromptVersion)
+            .HasMaxLength(100)
+            .IsRequired();
+
         suggestedAction.Property(action => action.Status)
             .HasConversion<string>()
             .HasMaxLength(20);

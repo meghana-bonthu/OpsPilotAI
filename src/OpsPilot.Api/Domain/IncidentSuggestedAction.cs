@@ -7,6 +7,7 @@ public sealed class IncidentSuggestedAction
     public IncidentSuggestedAction(
         Guid incidentId,
         string action,
+        string promptVersion,
         DateTimeOffset createdAtUtc)
     {
         if (incidentId == Guid.Empty)
@@ -23,9 +24,17 @@ public sealed class IncidentSuggestedAction
                 nameof(action));
         }
 
+        if (string.IsNullOrWhiteSpace(promptVersion))
+        {
+            throw new ArgumentException(
+                "Prompt version is required.",
+                nameof(promptVersion));
+        }
+
         Id = Guid.NewGuid();
         IncidentId = incidentId;
         Action = action.Trim();
+        PromptVersion = promptVersion.Trim();
         Status = SuggestedActionStatus.Pending;
         CreatedAtUtc = createdAtUtc;
     }
@@ -35,6 +44,8 @@ public sealed class IncidentSuggestedAction
     public Guid IncidentId { get; private set; }
 
     public string Action { get; private set; } = string.Empty;
+
+    public string PromptVersion { get; private set; } = string.Empty;
 
     public SuggestedActionStatus Status { get; private set; }
 

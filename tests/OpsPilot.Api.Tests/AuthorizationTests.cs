@@ -243,6 +243,12 @@ public sealed class AuthorizationTests
             summaryDocument.RootElement
                 .GetProperty("summary")
                 .GetString());
+
+        Assert.Equal(
+            AiPromptVersions.IncidentSummary,
+            summaryDocument.RootElement
+                .GetProperty("promptVersion")
+                .GetString());
     }
     [Fact]
     public async Task GetSummary_AsDifferentReporter_ReturnsNotFound()
@@ -1030,6 +1036,12 @@ public sealed class AuthorizationTests
                 .GetProperty("status")
                 .GetString());
 
+        Assert.Equal(
+            AiPromptVersions.IncidentSuggestedAction,
+            document.RootElement
+                .GetProperty("promptVersion")
+                .GetString());
+
         Assert.False(
             string.IsNullOrWhiteSpace(
                 document.RootElement
@@ -1304,6 +1316,10 @@ public sealed class AuthorizationTests
             "fallback",
             Assert.Single(searchModes));
 
+        Assert.False(
+            searchResponse.Headers.Contains(
+                "X-OpsPilot-AI-Version"));
+
         using var searchDocument = JsonDocument.Parse(
             await searchResponse.Content.ReadAsStringAsync());
 
@@ -1521,6 +1537,15 @@ public sealed class AuthorizationTests
         Assert.Equal(
             "semantic",
             Assert.Single(searchModes));
+
+        Assert.True(
+            searchResponse.Headers.TryGetValues(
+                "X-OpsPilot-AI-Version",
+                out var aiVersions));
+
+        Assert.Equal(
+            AiPromptVersions.IncidentSemanticSearch,
+            Assert.Single(aiVersions));
 
         using var searchDocument = JsonDocument.Parse(
             await searchResponse.Content.ReadAsStringAsync());
