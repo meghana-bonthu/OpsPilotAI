@@ -5,7 +5,9 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.EntityFrameworkCore;
+using OpsPilot.Api.AI;
 using OpsPilot.Api.Data;
 using OpsPilot.Api.Domain;
 using OpsPilot.Api.Security;
@@ -1258,6 +1260,287 @@ public sealed class AuthorizationTests
             HttpStatusCode.Conflict,
             secondDecisionResponse.StatusCode);
     }
+    [Fact]
+    public async Task Search_WhenSemanticSearchUnavailable_UsesTextFallback()
+    {
+        var reporterToken =
+            await RegisterReporterAsync();
+
+        _client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue(
+                "Bearer",
+                reporterToken);
+
+        var createResponse = await _client.PostAsJsonAsync(
+            "/api/incidents",
+            new
+            {
+                title = "Database connection timeout",
+                description = "Primary database cannot be reached.",
+                priority = "High"
+            });
+
+        createResponse.EnsureSuccessStatusCode();
+
+        using var createDocument = JsonDocument.Parse(
+            await createResponse.Content.ReadAsStringAsync());
+
+        var incidentId =
+            createDocument.RootElement
+                .GetProperty("id")
+                .GetGuid();
+
+        var searchResponse = await _client.GetAsync(
+            "/api/incidents/search?query=database");
+
+        searchResponse.EnsureSuccessStatusCode();
+
+        Assert.True(
+            searchResponse.Headers.TryGetValues(
+                "X-OpsPilot-Search-Mode",
+                out var searchModes));
+
+        Assert.Equal(
+            "fallback",
+            Assert.Single(searchModes));
+
+        using var searchDocument = JsonDocument.Parse(
+            await searchResponse.Content.ReadAsStringAsync());
+
+        var results =
+            searchDocument.RootElement;
+
+        Assert.Contains(
+            results.EnumerateArray(),
+            incident =>
+                incident.GetProperty("id").GetGuid() ==
+                incidentId);
+    }
+    [Fact]
+    public async Task Search_ReporterOnlySeesOwnIncidents()
+    {
+        var firstReporterToken =
+            await RegisterReporterAsync();
+
+        _client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue(
+                "Bearer",
+                firstReporterToken);
+
+        var firstCreateResponse = await _client.PostAsJsonAsync(
+            "/api/incidents",
+            new
+            {
+                title = "Shared search keyword",
+                description = "First reporter incident.",
+                priority = "Medium"
+            });
+
+        firstCreateResponse.EnsureSuccessStatusCode();
+
+        using var firstCreateDocument = JsonDocument.Parse(
+            await firstCreateResponse.Content.ReadAsStringAsync());
+
+        var firstIncidentId =
+            firstCreateDocument.RootElement
+                .GetProperty("id")
+                .GetGuid();
+
+        var secondReporterToken =
+            await RegisterReporterAsync();
+
+        _client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue(
+                "Bearer",
+                secondReporterToken);
+
+        var secondCreateResponse = await _client.PostAsJsonAsync(
+            "/api/incidents",
+            new
+            {
+                title = "Shared search keyword",
+                description = "Second reporter incident.",
+                priority = "Medium"
+            });
+
+        secondCreateResponse.EnsureSuccessStatusCode();
+
+        using var secondCreateDocument = JsonDocument.Parse(
+            await secondCreateResponse.Content.ReadAsStringAsync());
+
+        var secondIncidentId =
+            secondCreateDocument.RootElement
+                .GetProperty("id")
+                .GetGuid();
+
+        _client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue(
+                "Bearer",
+                firstReporterToken);
+
+        var searchResponse = await _client.GetAsync(
+            "/api/incidents/search?query=Shared");
+
+        searchResponse.EnsureSuccessStatusCode();
+
+        using var searchDocument = JsonDocument.Parse(
+            await searchResponse.Content.ReadAsStringAsync());
+
+        var results =
+            searchDocument.RootElement
+                .EnumerateArray()
+                .Select(
+                    incident =>
+                        incident.GetProperty("id").GetGuid())
+                .ToList();
+
+        Assert.Contains(firstIncidentId, results);
+        Assert.DoesNotContain(secondIncidentId, results);
+    }
+    [Fact]
+    public async Task Search_WithBlankQuery_ReturnsBadRequest()
+    {
+        var reporterToken =
+            await RegisterReporterAsync();
+
+        _client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue(
+                "Bearer",
+                reporterToken);
+
+        var response = await _client.GetAsync(
+            "/api/incidents/search?query=%20%20%20");
+
+        Assert.Equal(
+            HttpStatusCode.BadRequest,
+            response.StatusCode);
+
+        using var document = JsonDocument.Parse(
+            await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(
+            "Search query is required",
+            document.RootElement
+                .GetProperty("title")
+                .GetString());
+
+        Assert.Equal(
+            400,
+            document.RootElement
+                .GetProperty("status")
+                .GetInt32());
+    }
+    [Fact]
+    public async Task Search_WhenSemanticGatewayReturnsIds_PreservesSemanticRanking()
+    {
+        var reporterToken =
+            await RegisterReporterAsync();
+
+        _client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue(
+                "Bearer",
+                reporterToken);
+
+        var firstCreateResponse = await _client.PostAsJsonAsync(
+            "/api/incidents",
+            new
+            {
+                title = "First semantic incident",
+                description = "Semantic ranking candidate one.",
+                priority = "Medium"
+            });
+
+        firstCreateResponse.EnsureSuccessStatusCode();
+
+        using var firstCreateDocument = JsonDocument.Parse(
+            await firstCreateResponse.Content.ReadAsStringAsync());
+
+        var firstIncidentId =
+            firstCreateDocument.RootElement
+                .GetProperty("id")
+                .GetGuid();
+
+        var secondCreateResponse = await _client.PostAsJsonAsync(
+            "/api/incidents",
+            new
+            {
+                title = "Second semantic incident",
+                description = "Semantic ranking candidate two.",
+                priority = "Medium"
+            });
+
+        secondCreateResponse.EnsureSuccessStatusCode();
+
+        using var secondCreateDocument = JsonDocument.Parse(
+            await secondCreateResponse.Content.ReadAsStringAsync());
+
+        var secondIncidentId =
+            secondCreateDocument.RootElement
+                .GetProperty("id")
+                .GetGuid();
+
+        using var semanticFactory =
+            _factory.WithWebHostBuilder(
+                builder =>
+                {
+                    builder.ConfigureServices(
+                        services =>
+                        {
+                            services.RemoveAll<
+                                IIncidentSemanticSearchGateway>();
+
+                            services.AddSingleton<
+                                IIncidentSemanticSearchGateway>(
+                                new TestIncidentSemanticSearchGateway(
+                                    new[]
+                                    {
+                                        firstIncidentId,
+                                        secondIncidentId
+                                    }));
+                        });
+                });
+
+        using var semanticClient =
+            semanticFactory.CreateClient();
+
+        semanticClient.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue(
+                "Bearer",
+                reporterToken);
+
+        var searchResponse = await semanticClient.GetAsync(
+            "/api/incidents/search?query=semantic");
+
+        searchResponse.EnsureSuccessStatusCode();
+
+        Assert.True(
+            searchResponse.Headers.TryGetValues(
+                "X-OpsPilot-Search-Mode",
+                out var searchModes));
+
+        Assert.Equal(
+            "semantic",
+            Assert.Single(searchModes));
+
+        using var searchDocument = JsonDocument.Parse(
+            await searchResponse.Content.ReadAsStringAsync());
+
+        var resultIds =
+            searchDocument.RootElement
+                .EnumerateArray()
+                .Select(
+                    incident =>
+                        incident.GetProperty("id").GetGuid())
+                .ToList();
+
+        Assert.Equal(
+            new[]
+            {
+                firstIncidentId,
+                secondIncidentId
+            },
+            resultIds);
+    }
     private async Task<string> RegisterReporterAsync()
     {
         var email =
@@ -1395,5 +1678,21 @@ public sealed class AuthorizationTests
             await tokenService.CreateTokenAsync(user);
 
         return token.Token;
+    }
+
+    private sealed class TestIncidentSemanticSearchGateway(
+        IReadOnlyList<Guid> resultIds)
+        : IIncidentSemanticSearchGateway
+    {
+        public Task<IReadOnlyList<Guid>?> SearchAsync(
+            string query,
+            IReadOnlyList<IncidentSearchDocument> incidents,
+            CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            return Task.FromResult<
+                IReadOnlyList<Guid>?>(resultIds);
+        }
     }
 }

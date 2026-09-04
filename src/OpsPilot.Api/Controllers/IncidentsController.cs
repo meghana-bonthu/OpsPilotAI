@@ -19,6 +19,7 @@ public sealed class IncidentsController(
     IDistributedCache cache,
     IIncidentSummaryGateway incidentSummaryGateway,
     IIncidentSuggestedActionGateway incidentSuggestedActionGateway,
+    IIncidentSemanticSearchGateway incidentSemanticSearchGateway,
     ISensitiveDataRedactor sensitiveDataRedactor) : ControllerBase
 {
     [HttpGet]
@@ -94,6 +95,124 @@ public sealed class IncidentsController(
         return Ok(incidents);
     }
 
+    [HttpGet("search")]
+    [ProducesResponseType<IReadOnlyList<IncidentResponse>>(
+        StatusCodes.Status200OK)]
+    [ProducesResponseType<ProblemDetails>(
+        StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<IReadOnlyList<IncidentResponse>>> Search(
+        [FromQuery] string? query,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return BadRequest(new ProblemDetails
+            {
+                Title = "Search query is required",
+                Detail = "Provide a non-empty search query.",
+                Status = StatusCodes.Status400BadRequest
+            });
+        }
+
+        var incidentQuery = dbContext.Incidents
+            .AsNoTracking()
+            .AsQueryable();
+
+        var hasElevatedAccess =
+            User.IsInRole("Responder") ||
+            User.IsInRole("Administrator");
+
+        if (!hasElevatedAccess)
+        {
+            var reporterUserId =
+                User.FindFirstValue(
+                    ClaimTypes.NameIdentifier);
+
+            if (string.IsNullOrWhiteSpace(reporterUserId))
+            {
+                return Unauthorized();
+            }
+
+            incidentQuery = incidentQuery.Where(
+                incident =>
+                    incident.ReporterUserId == reporterUserId);
+        }
+
+        var accessibleIncidents = await incidentQuery
+            .Select(
+                incident => new IncidentSearchDocument(
+                    incident.Id,
+                    incident.Title,
+                    incident.Description))
+            .ToListAsync(cancellationToken);
+
+        var semanticDocuments =
+            accessibleIncidents
+                .Select(
+                    incident => new IncidentSearchDocument(
+                        incident.Id,
+                        sensitiveDataRedactor.Redact(
+                            incident.Title),
+                        sensitiveDataRedactor.Redact(
+                            incident.Description)))
+                .ToList();
+
+        var semanticIds =
+            await incidentSemanticSearchGateway.SearchAsync(
+                query.Trim(),
+                semanticDocuments,
+                cancellationToken);
+
+        if (semanticIds is not null)
+        {
+            Response.Headers["X-OpsPilot-Search-Mode"] =
+                "semantic";
+            if (semanticIds.Count == 0)
+            {
+                return Ok(
+                    Array.Empty<IncidentResponse>());
+            }
+
+            var semanticMatches = await incidentQuery
+                .Where(
+                    incident =>
+                        semanticIds.Contains(incident.Id))
+                .Select(
+                    incident => ToResponse(incident))
+                .ToListAsync(cancellationToken);
+
+            var responsesById =
+                semanticMatches.ToDictionary(
+                    incident => incident.Id);
+
+            var rankedResults =
+                semanticIds
+                    .Where(responsesById.ContainsKey)
+                    .Select(
+                        id => responsesById[id])
+                    .ToList();
+
+            return Ok(rankedResults);
+        }
+
+        Response.Headers["X-OpsPilot-Search-Mode"] =
+            "fallback";
+
+        var searchTerm = query.Trim();
+
+        var incidents = await incidentQuery
+            .Where(
+                incident =>
+                    incident.Title.Contains(searchTerm) ||
+                    incident.Description.Contains(searchTerm))
+            .OrderByDescending(
+                incident => incident.CreatedAtUtc)
+            .Select(
+                incident => ToResponse(incident))
+            .ToListAsync(cancellationToken);
+
+        return Ok(incidents);
+    }
     [HttpGet("{id:guid}", Name = "GetIncidentById")]
     [ProducesResponseType<IncidentResponse>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

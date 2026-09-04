@@ -46,6 +46,9 @@ public sealed class OpsPilotApiFactory
             "Caching:UseRedis",
             "false");
         builder.UseSetting(
+            "AI:SemanticSearchEnabled",
+            "false");
+        builder.UseSetting(
             "Jwt:Key",
             Convert.ToBase64String(
                 System.Text.Encoding.UTF8.GetBytes(

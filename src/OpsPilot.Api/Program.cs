@@ -48,6 +48,18 @@ builder.Services.AddSingleton<RabbitMqEventPublisher>();
 builder.Services.AddSingleton<ISensitiveDataRedactor, SensitiveDataRedactor>();
 builder.Services.AddScoped<IIncidentSummaryGateway, LocalIncidentSummaryGateway>();
 builder.Services.AddScoped<IIncidentSuggestedActionGateway, LocalIncidentSuggestedActionGateway>();
+if (builder.Configuration.GetValue("AI:SemanticSearchEnabled", true))
+{
+    builder.Services.AddScoped<
+        IIncidentSemanticSearchGateway,
+        LocalIncidentSemanticSearchGateway>();
+}
+else
+{
+    builder.Services.AddScoped<
+        IIncidentSemanticSearchGateway,
+        DisabledIncidentSemanticSearchGateway>();
+}
 if (builder.Configuration.GetValue("Caching:UseRedis", true))
 {
     builder.Services.AddStackExchangeRedisCache(options =>
