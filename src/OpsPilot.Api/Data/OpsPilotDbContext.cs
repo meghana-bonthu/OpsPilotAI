@@ -12,6 +12,8 @@ public sealed class OpsPilotDbContext(
 
     public DbSet<IncidentStatusChange> IncidentStatusChanges =>
         Set<IncidentStatusChange>();
+    public DbSet<IncidentSuggestedAction> IncidentSuggestedActions =>
+        Set<IncidentSuggestedAction>();
     public DbSet<ProcessedMessage> ProcessedMessages =>
         Set<ProcessedMessage>();
 
@@ -135,6 +137,33 @@ public sealed class OpsPilotDbContext(
         team.HasIndex(current => current.Name)
             .IsUnique();
         
+        var suggestedAction =
+            modelBuilder.Entity<IncidentSuggestedAction>();
+
+        suggestedAction.HasKey(action => action.Id);
+
+        suggestedAction.Property(action => action.Action)
+            .HasMaxLength(2000)
+            .IsRequired();
+
+        suggestedAction.Property(action => action.Status)
+            .HasConversion<string>()
+            .HasMaxLength(20);
+
+        suggestedAction.Property(action => action.DecidedByUserId)
+            .HasMaxLength(450);
+
+        suggestedAction.HasIndex(action => new
+        {
+            action.IncidentId,
+            action.CreatedAtUtc
+        });
+
+        suggestedAction.HasOne<Incident>()
+            .WithMany()
+            .HasForeignKey(action => action.IncidentId)
+            .OnDelete(DeleteBehavior.Cascade);
+
         var outboxMessage =
             modelBuilder.Entity<OutboxMessage>();
 

@@ -47,6 +47,7 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<RabbitMqEventPublisher>();
 builder.Services.AddSingleton<ISensitiveDataRedactor, SensitiveDataRedactor>();
 builder.Services.AddScoped<IIncidentSummaryGateway, LocalIncidentSummaryGateway>();
+builder.Services.AddScoped<IIncidentSuggestedActionGateway, LocalIncidentSuggestedActionGateway>();
 if (builder.Configuration.GetValue("Caching:UseRedis", true))
 {
     builder.Services.AddStackExchangeRedisCache(options =>

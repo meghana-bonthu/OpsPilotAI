@@ -948,6 +948,316 @@ public sealed class AuthorizationTests
             HttpStatusCode.Conflict,
             secondResponse.StatusCode);
     }
+    [Fact]
+    public async Task GenerateSuggestedAction_AsReporter_ReturnsForbidden()
+    {
+        var reporterToken =
+            await RegisterReporterAsync();
+
+        _client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue(
+                "Bearer",
+                reporterToken);
+
+        var response = await _client.PostAsync(
+            $"/api/incidents/{Guid.NewGuid()}/suggested-actions",
+            null);
+
+        Assert.Equal(
+            HttpStatusCode.Forbidden,
+            response.StatusCode);
+    }
+    [Fact]
+    public async Task GenerateSuggestedAction_AsResponder_CreatesPendingSuggestion()
+    {
+        var reporterToken =
+            await RegisterReporterAsync();
+
+        _client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue(
+                "Bearer",
+                reporterToken);
+
+        var createResponse = await _client.PostAsJsonAsync(
+            "/api/incidents",
+            new
+            {
+                title = "Payment gateway timeout",
+                description = "Transactions are timing out.",
+                priority = "High"
+            });
+
+        createResponse.EnsureSuccessStatusCode();
+
+        using var createDocument = JsonDocument.Parse(
+            await createResponse.Content.ReadAsStringAsync());
+
+        var incidentId =
+            createDocument.RootElement
+                .GetProperty("id")
+                .GetGuid();
+
+        var responder =
+            await CreateResponderTokenAsync();
+
+        _client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue(
+                "Bearer",
+                responder.Token);
+
+        var response = await _client.PostAsync(
+            $"/api/incidents/{incidentId}/suggested-actions",
+            null);
+
+        Assert.Equal(
+            HttpStatusCode.Created,
+            response.StatusCode);
+
+        using var document = JsonDocument.Parse(
+            await response.Content.ReadAsStringAsync());
+
+        Assert.Equal(
+            incidentId,
+            document.RootElement
+                .GetProperty("incidentId")
+                .GetGuid());
+
+        Assert.Equal(
+            "Pending",
+            document.RootElement
+                .GetProperty("status")
+                .GetString());
+
+        Assert.False(
+            string.IsNullOrWhiteSpace(
+                document.RootElement
+                    .GetProperty("action")
+                    .GetString()));
+    }
+    [Fact]
+    public async Task ApproveSuggestedAction_AsResponder_RecordsDecision()
+    {
+        var reporterToken =
+            await RegisterReporterAsync();
+
+        _client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue(
+                "Bearer",
+                reporterToken);
+
+        var createResponse = await _client.PostAsJsonAsync(
+            "/api/incidents",
+            new
+            {
+                title = "Approval workflow integration test",
+                description = "Verify a responder can approve an AI suggestion.",
+                priority = "Medium"
+            });
+
+        createResponse.EnsureSuccessStatusCode();
+
+        using var createDocument = JsonDocument.Parse(
+            await createResponse.Content.ReadAsStringAsync());
+
+        var incidentId =
+            createDocument.RootElement
+                .GetProperty("id")
+                .GetGuid();
+
+        var responder =
+            await CreateResponderTokenAsync();
+
+        _client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue(
+                "Bearer",
+                responder.Token);
+
+        var generateResponse = await _client.PostAsync(
+            $"/api/incidents/{incidentId}/suggested-actions",
+            null);
+
+        generateResponse.EnsureSuccessStatusCode();
+
+        using var generateDocument = JsonDocument.Parse(
+            await generateResponse.Content.ReadAsStringAsync());
+
+        var actionId =
+            generateDocument.RootElement
+                .GetProperty("id")
+                .GetGuid();
+
+        var approveResponse = await _client.PostAsync(
+            $"/api/incidents/{incidentId}/suggested-actions/{actionId}/approve",
+            null);
+
+        approveResponse.EnsureSuccessStatusCode();
+
+        using var approveDocument = JsonDocument.Parse(
+            await approveResponse.Content.ReadAsStringAsync());
+
+        Assert.Equal(
+            "Approved",
+            approveDocument.RootElement
+                .GetProperty("status")
+                .GetString());
+
+        Assert.Equal(
+            responder.UserId,
+            approveDocument.RootElement
+                .GetProperty("decidedByUserId")
+                .GetString());
+
+        Assert.NotEqual(
+            JsonValueKind.Null,
+            approveDocument.RootElement
+                .GetProperty("decidedAtUtc")
+                .ValueKind);
+    }
+    [Fact]
+    public async Task RejectSuggestedAction_AsResponder_RecordsDecision()
+    {
+        var reporterToken =
+            await RegisterReporterAsync();
+
+        _client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue(
+                "Bearer",
+                reporterToken);
+
+        var createResponse = await _client.PostAsJsonAsync(
+            "/api/incidents",
+            new
+            {
+                title = "Rejection workflow integration test",
+                description = "Verify a responder can reject an AI suggestion.",
+                priority = "Low"
+            });
+
+        createResponse.EnsureSuccessStatusCode();
+
+        using var createDocument = JsonDocument.Parse(
+            await createResponse.Content.ReadAsStringAsync());
+
+        var incidentId =
+            createDocument.RootElement
+                .GetProperty("id")
+                .GetGuid();
+
+        var responder =
+            await CreateResponderTokenAsync();
+
+        _client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue(
+                "Bearer",
+                responder.Token);
+
+        var generateResponse = await _client.PostAsync(
+            $"/api/incidents/{incidentId}/suggested-actions",
+            null);
+
+        generateResponse.EnsureSuccessStatusCode();
+
+        using var generateDocument = JsonDocument.Parse(
+            await generateResponse.Content.ReadAsStringAsync());
+
+        var actionId =
+            generateDocument.RootElement
+                .GetProperty("id")
+                .GetGuid();
+
+        var rejectResponse = await _client.PostAsync(
+            $"/api/incidents/{incidentId}/suggested-actions/{actionId}/reject",
+            null);
+
+        rejectResponse.EnsureSuccessStatusCode();
+
+        using var rejectDocument = JsonDocument.Parse(
+            await rejectResponse.Content.ReadAsStringAsync());
+
+        Assert.Equal(
+            "Rejected",
+            rejectDocument.RootElement
+                .GetProperty("status")
+                .GetString());
+
+        Assert.Equal(
+            responder.UserId,
+            rejectDocument.RootElement
+                .GetProperty("decidedByUserId")
+                .GetString());
+
+        Assert.NotEqual(
+            JsonValueKind.Null,
+            rejectDocument.RootElement
+                .GetProperty("decidedAtUtc")
+                .ValueKind);
+    }
+    [Fact]
+    public async Task ApproveSuggestedAction_WhenAlreadyDecided_ReturnsConflict()
+    {
+        var reporterToken =
+            await RegisterReporterAsync();
+
+        _client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue(
+                "Bearer",
+                reporterToken);
+
+        var createResponse = await _client.PostAsJsonAsync(
+            "/api/incidents",
+            new
+            {
+                title = "Double decision integration test",
+                description = "Verify a decided suggestion cannot be changed again.",
+                priority = "Medium"
+            });
+
+        createResponse.EnsureSuccessStatusCode();
+
+        using var createDocument = JsonDocument.Parse(
+            await createResponse.Content.ReadAsStringAsync());
+
+        var incidentId =
+            createDocument.RootElement
+                .GetProperty("id")
+                .GetGuid();
+
+        var responder =
+            await CreateResponderTokenAsync();
+
+        _client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue(
+                "Bearer",
+                responder.Token);
+
+        var generateResponse = await _client.PostAsync(
+            $"/api/incidents/{incidentId}/suggested-actions",
+            null);
+
+        generateResponse.EnsureSuccessStatusCode();
+
+        using var generateDocument = JsonDocument.Parse(
+            await generateResponse.Content.ReadAsStringAsync());
+
+        var actionId =
+            generateDocument.RootElement
+                .GetProperty("id")
+                .GetGuid();
+
+        var firstDecisionResponse = await _client.PostAsync(
+            $"/api/incidents/{incidentId}/suggested-actions/{actionId}/reject",
+            null);
+
+        firstDecisionResponse.EnsureSuccessStatusCode();
+
+        var secondDecisionResponse = await _client.PostAsync(
+            $"/api/incidents/{incidentId}/suggested-actions/{actionId}/approve",
+            null);
+
+        Assert.Equal(
+            HttpStatusCode.Conflict,
+            secondDecisionResponse.StatusCode);
+    }
     private async Task<string> RegisterReporterAsync()
     {
         var email =

@@ -18,6 +18,7 @@ public sealed class IncidentsController(
     OpsPilotDbContext dbContext,
     IDistributedCache cache,
     IIncidentSummaryGateway incidentSummaryGateway,
+    IIncidentSuggestedActionGateway incidentSuggestedActionGateway,
     ISensitiveDataRedactor sensitiveDataRedactor) : ControllerBase
 {
     [HttpGet]
@@ -195,6 +196,225 @@ public sealed class IncidentsController(
             new IncidentSummaryResponse(
                 incident.Id,
                 summary));
+    }
+    [Authorize(Policy = "ResponderOrAdministrator")]
+    [HttpGet("{id:guid}/suggested-actions")]
+    [ProducesResponseType<IReadOnlyList<IncidentSuggestedActionResponse>>(
+        StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<
+        ActionResult<IReadOnlyList<IncidentSuggestedActionResponse>>>
+        GetSuggestedActions(
+            Guid id,
+            CancellationToken cancellationToken)
+    {
+        var incidentExists = await dbContext.Incidents
+            .AsNoTracking()
+            .AnyAsync(
+                incident => incident.Id == id,
+                cancellationToken);
+
+        if (!incidentExists)
+        {
+            return NotFound();
+        }
+
+        var suggestedActions =
+            await dbContext.IncidentSuggestedActions
+                .AsNoTracking()
+                .Where(
+                    suggestedAction =>
+                        suggestedAction.IncidentId == id)
+                .OrderByDescending(
+                    suggestedAction =>
+                        suggestedAction.CreatedAtUtc)
+                .Select(
+                    suggestedAction =>
+                        new IncidentSuggestedActionResponse(
+                            suggestedAction.Id,
+                            suggestedAction.IncidentId,
+                            suggestedAction.Action,
+                            suggestedAction.Status,
+                            suggestedAction.CreatedAtUtc,
+                            suggestedAction.DecidedAtUtc,
+                            suggestedAction.DecidedByUserId))
+                .ToListAsync(cancellationToken);
+
+        return Ok(suggestedActions);
+    }
+    [Authorize(Policy = "ResponderOrAdministrator")]
+    [HttpPost("{id:guid}/suggested-actions")]
+    [ProducesResponseType<IncidentSuggestedActionResponse>(
+        StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<IncidentSuggestedActionResponse>>
+        GenerateSuggestedAction(
+            Guid id,
+            CancellationToken cancellationToken)
+    {
+        var incident = await dbContext.Incidents
+            .AsNoTracking()
+            .SingleOrDefaultAsync(
+                current => current.Id == id,
+                cancellationToken);
+
+        if (incident is null)
+        {
+            return NotFound();
+        }
+
+        var redactedTitle =
+            sensitiveDataRedactor.Redact(
+                incident.Title);
+
+        var redactedDescription =
+            sensitiveDataRedactor.Redact(
+                incident.Description);
+
+        var action =
+            await incidentSuggestedActionGateway
+                .GenerateSuggestedActionAsync(
+                    redactedTitle,
+                    redactedDescription,
+                    incident.Priority.ToString(),
+                    incident.Status.ToString(),
+                    cancellationToken);
+
+        var suggestedAction =
+            new IncidentSuggestedAction(
+                incident.Id,
+                action,
+                DateTimeOffset.UtcNow);
+
+        dbContext.IncidentSuggestedActions.Add(
+            suggestedAction);
+
+        await dbContext.SaveChangesAsync(
+            cancellationToken);
+
+        var response =
+            ToSuggestedActionResponse(
+                suggestedAction);
+
+        return Created(
+            $"/api/incidents/{incident.Id}/suggested-actions/{suggestedAction.Id}",
+            response);
+    }
+    [Authorize(Policy = "ResponderOrAdministrator")]
+    [HttpPost("{id:guid}/suggested-actions/{actionId:guid}/approve")]
+    [ProducesResponseType<IncidentSuggestedActionResponse>(
+        StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(
+        StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<IncidentSuggestedActionResponse>>
+        ApproveSuggestedAction(
+            Guid id,
+            Guid actionId,
+            CancellationToken cancellationToken)
+    {
+        var suggestedAction =
+            await dbContext.IncidentSuggestedActions
+                .SingleOrDefaultAsync(
+                    action =>
+                        action.Id == actionId &&
+                        action.IncidentId == id,
+                    cancellationToken);
+
+        if (suggestedAction is null)
+        {
+            return NotFound();
+        }
+
+        var decidedByUserId =
+            User.FindFirstValue(
+                ClaimTypes.NameIdentifier);
+
+        if (string.IsNullOrWhiteSpace(decidedByUserId))
+        {
+            return Unauthorized();
+        }
+
+        try
+        {
+            suggestedAction.Approve(
+                decidedByUserId,
+                DateTimeOffset.UtcNow);
+        }
+        catch (InvalidOperationException exception)
+        {
+            return Conflict(new ProblemDetails
+            {
+                Title = "Suggested action already decided",
+                Detail = exception.Message,
+                Status = StatusCodes.Status409Conflict
+            });
+        }
+
+        await dbContext.SaveChangesAsync(
+            cancellationToken);
+
+        return Ok(
+            ToSuggestedActionResponse(
+                suggestedAction));
+    }
+    [Authorize(Policy = "ResponderOrAdministrator")]
+    [HttpPost("{id:guid}/suggested-actions/{actionId:guid}/reject")]
+    [ProducesResponseType<IncidentSuggestedActionResponse>(
+        StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(
+        StatusCodes.Status409Conflict)]
+    public async Task<ActionResult<IncidentSuggestedActionResponse>>
+        RejectSuggestedAction(
+            Guid id,
+            Guid actionId,
+            CancellationToken cancellationToken)
+    {
+        var suggestedAction =
+            await dbContext.IncidentSuggestedActions
+                .SingleOrDefaultAsync(
+                    action =>
+                        action.Id == actionId &&
+                        action.IncidentId == id,
+                    cancellationToken);
+
+        if (suggestedAction is null)
+        {
+            return NotFound();
+        }
+
+        var decidedByUserId =
+            User.FindFirstValue(
+                ClaimTypes.NameIdentifier);
+
+        if (string.IsNullOrWhiteSpace(decidedByUserId))
+        {
+            return Unauthorized();
+        }
+
+        try
+        {
+            suggestedAction.Reject(
+                decidedByUserId,
+                DateTimeOffset.UtcNow);
+        }
+        catch (InvalidOperationException exception)
+        {
+            return Conflict(new ProblemDetails
+            {
+                Title = "Suggested action already decided",
+                Detail = exception.Message,
+                Status = StatusCodes.Status409Conflict
+            });
+        }
+
+        await dbContext.SaveChangesAsync(
+            cancellationToken);
+
+        return Ok(
+            ToSuggestedActionResponse(
+                suggestedAction));
     }
     [HttpGet("{id:guid}/history")]
     [ProducesResponseType<IReadOnlyList<IncidentStatusChangeResponse>>(
@@ -557,6 +777,18 @@ public sealed class IncidentsController(
         return Ok(ToResponse(incident));
     }
 
+    private static IncidentSuggestedActionResponse ToSuggestedActionResponse(
+        IncidentSuggestedAction suggestedAction)
+    {
+        return new IncidentSuggestedActionResponse(
+            suggestedAction.Id,
+            suggestedAction.IncidentId,
+            suggestedAction.Action,
+            suggestedAction.Status,
+            suggestedAction.CreatedAtUtc,
+            suggestedAction.DecidedAtUtc,
+            suggestedAction.DecidedByUserId);
+    }
     private static IncidentResponse ToResponse(Incident incident)
     {
         return new IncidentResponse(
