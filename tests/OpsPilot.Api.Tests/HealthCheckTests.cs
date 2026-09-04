@@ -24,4 +24,15 @@ public sealed class HealthCheckTests
             HttpStatusCode.OK,
             response.StatusCode);
     }
+
+    [Fact]
+    public async Task Readiness_WhenDatabaseAvailable_ReturnsOk()
+    {
+        var response =
+            await _client.GetAsync("/health/ready");
+
+        Assert.Equal(
+            HttpStatusCode.OK,
+            response.StatusCode);
+    }
 }

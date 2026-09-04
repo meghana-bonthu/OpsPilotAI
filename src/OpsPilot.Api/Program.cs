@@ -11,6 +11,8 @@ using OpsPilot.Api.Security;
 using OpsPilot.Api.Background;
 using OpsPilot.Api.Messaging;
 using OpsPilot.Api.AI;
+using OpsPilot.Api.Health;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -30,7 +32,10 @@ builder.Services.AddControllers()
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-builder.Services.AddHealthChecks();
+builder.Services.AddHealthChecks()
+    .AddCheck<DatabaseHealthCheck>(
+        "database",
+        tags: new[] { "ready" });
 
 builder.Services.AddCors(options =>
     options.AddPolicy("AngularDevelopment", policy =>
@@ -225,7 +230,20 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-app.MapHealthChecks("/health");
+app.MapHealthChecks(
+    "/health",
+    new HealthCheckOptions
+    {
+        Predicate = _ => false
+    });
+
+app.MapHealthChecks(
+    "/health/ready",
+    new HealthCheckOptions
+    {
+        Predicate = check =>
+            check.Tags.Contains("ready")
+    });
 
 app.Run();
 
