@@ -13,8 +13,18 @@ using OpsPilot.Api.Messaging;
 using OpsPilot.Api.AI;
 using OpsPilot.Api.Health;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Azure.Monitor.OpenTelemetry.AspNetCore;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Logging.AddOpenTelemetry(options =>
+{
+    options.IncludeFormattedMessage = true;
+    options.IncludeScopes = true;
+});
 
 builder.Services.AddProblemDetails(options =>
 {
@@ -32,6 +42,24 @@ builder.Services.AddControllers()
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+var openTelemetry = builder.Services.AddOpenTelemetry()
+    .ConfigureResource(resource =>
+        resource.AddService("OpsPilot.Api"))
+    .WithTracing(tracing =>
+        tracing
+            .AddAspNetCoreInstrumentation()
+            .AddHttpClientInstrumentation())
+    .WithMetrics(metrics =>
+        metrics
+            .AddAspNetCoreInstrumentation()
+            .AddHttpClientInstrumentation());
+
+if (!string.IsNullOrWhiteSpace(
+        builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]))
+{
+    openTelemetry.UseAzureMonitor();
+}
 builder.Services.AddHealthChecks()
     .AddCheck<DatabaseHealthCheck>(
         "database",
