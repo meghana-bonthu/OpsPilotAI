@@ -230,3 +230,38 @@ resource stagingSlotSettings 'Microsoft.Web/sites/slots/config@2025-03-01' = {
     ASPNETCORE_ENVIRONMENT: 'Production'
   }
 }
+
+resource webAppHttp5xxAlert 'Microsoft.Insights/metricAlerts@2026-01-01' = {
+  name: '${prefix}-http5xx-alert'
+  location: 'global'
+  properties: {
+    description: 'Alerts when the OpsPilot API returns repeated HTTP 5xx responses.'
+    severity: 2
+    enabled: true
+    scopes: [
+      webApp.id
+    ]
+    evaluationFrequency: 'PT5M'
+    windowSize: 'PT5M'
+    autoMitigate: true
+    targetResourceType: 'Microsoft.Web/sites'
+    targetResourceRegion: location
+    criteria: {
+      'odata.type': 'Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria'
+      allOf: [
+        {
+          name: 'Http5xxThreshold'
+          criterionType: 'StaticThresholdCriterion'
+          metricNamespace: 'Microsoft.Web/sites'
+          metricName: 'Http5xx'
+          operator: 'GreaterThan'
+          threshold: 5
+          timeAggregation: 'Total'
+          skipMetricValidation: false
+          dimensions: []
+        }
+      ]
+    }
+    actions: []
+  }
+}
