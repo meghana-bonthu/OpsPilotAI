@@ -30,6 +30,7 @@ builder.Services.AddControllers()
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddHealthChecks();
 
 builder.Services.AddCors(options =>
     options.AddPolicy("AngularDevelopment", policy =>
@@ -224,8 +225,7 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-app.MapGet("/health", () =>
-    Results.Ok(new { status = "healthy" }));
+app.MapHealthChecks("/health");
 
 app.Run();
 
