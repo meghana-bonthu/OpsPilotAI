@@ -17,7 +17,8 @@ namespace OpsPilot.Api.Controllers;
 public sealed class IncidentsController(
     OpsPilotDbContext dbContext,
     IDistributedCache cache,
-    IIncidentSummaryGateway incidentSummaryGateway) : ControllerBase
+    IIncidentSummaryGateway incidentSummaryGateway,
+    ISensitiveDataRedactor sensitiveDataRedactor) : ControllerBase
 {
     [HttpGet]
     [ProducesResponseType<IReadOnlyList<IncidentResponse>>(
@@ -175,10 +176,18 @@ public sealed class IncidentsController(
             return NotFound();
         }
 
+        var redactedTitle =
+            sensitiveDataRedactor.Redact(
+                incident.Title);
+
+        var redactedDescription =
+            sensitiveDataRedactor.Redact(
+                incident.Description);
+
         var summary =
             await incidentSummaryGateway.GenerateSummaryAsync(
-                incident.Title,
-                incident.Description,
+                redactedTitle,
+                redactedDescription,
                 incident.Priority.ToString(),
                 cancellationToken);
 

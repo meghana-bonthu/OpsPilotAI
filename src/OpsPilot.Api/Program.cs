@@ -45,6 +45,7 @@ builder.Services.AddDbContext<OpsPilotDbContext>(options =>
             "ConnectionStrings__OpsPilot is required.")));
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<RabbitMqEventPublisher>();
+builder.Services.AddSingleton<ISensitiveDataRedactor, SensitiveDataRedactor>();
 builder.Services.AddScoped<IIncidentSummaryGateway, LocalIncidentSummaryGateway>();
 if (builder.Configuration.GetValue("Caching:UseRedis", true))
 {
