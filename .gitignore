@@ -12,3 +12,9 @@ appsettings.Development.json
 *.suo
 
 db-backup/
+
+# Azure / Bicep local deployment files
+*.local.bicepparam
+
+# Generated Bicep ARM templates
+infra/*.json
