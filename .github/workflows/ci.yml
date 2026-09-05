@@ -76,3 +76,18 @@ jobs:
           done
 
           exit 1
+
+  infrastructure:
+    name: Infrastructure Validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate Bicep
+        uses: azure/CLI@v2
+        with:
+          azcliversion: latest
+          inlineScript: |
+            az bicep build --file infra/main.bicep
