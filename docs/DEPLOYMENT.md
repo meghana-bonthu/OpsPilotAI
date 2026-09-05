@@ -79,6 +79,16 @@ Before applying a migration:
 4. Apply the migration before performing a slot swap when the new application requires the updated schema.
 5. Verify database readiness after migration.
 
+From the repository root, apply reviewed migrations with:
+
+```powershell
+dotnet ef database update --project .\src\OpsPilot.Api\OpsPilot.Api.csproj
+```
+
+The target database connection string must be supplied through secure environment configuration before running the command. Do not place Azure SQL passwords or complete production connection strings in source control, deployment documentation, or command-line history.
+
+The API does not run EF Core migrations automatically during application startup. Database migration remains an explicit deployment operation so schema changes can be reviewed and coordinated with the staging-slot deployment.
+
 Destructive migrations should not be automatically rolled back without evaluating their data impact.
 
 ## Post-Deployment Verification
