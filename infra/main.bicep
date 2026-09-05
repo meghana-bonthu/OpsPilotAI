@@ -31,7 +31,7 @@ resource applicationInsights 'Microsoft.Insights/components@2020-02-02' = {
 
 output applicationInsightsConnectionString string = applicationInsights.properties.ConnectionString
 resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
-  name: '${prefix}-kv'
+  name: 'opspilot${uniqueString(resourceGroup().id)}kv'
   location: location
   properties: {
     tenantId: tenant().tenantId
